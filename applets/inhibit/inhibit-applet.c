@@ -292,7 +292,6 @@ gpm_applet_draw_cb (GpmInhibitApplet *applet)
 	GdkRGBA color;
 	cairo_t *cr;
 	cairo_pattern_t *pattern;
-	GtkStyleContext *context;
 #else
 	GdkColor color;
 	GdkGC *gc;

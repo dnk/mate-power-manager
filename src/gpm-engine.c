@@ -1098,10 +1098,6 @@ phone_device_refresh_cb (GpmPhone *phone, guint idx, GpmEngine *engine)
 static void
 gpm_engine_init (GpmEngine *engine)
 {
-#if UP_CHECK_VERSION(0, 99, 0)
-	GPtrArray *array = NULL;
-	guint i;
-#endif
 	engine->priv = GPM_ENGINE_GET_PRIVATE (engine);
 
 	engine->priv->array = g_ptr_array_new_with_free_func (g_object_unref);

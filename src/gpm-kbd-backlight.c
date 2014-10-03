@@ -188,7 +188,11 @@ gpm_kbd_backlight_dialog_show (GpmKbdBacklight *backlight)
 	 * know its true size, yet, so we need to jump through hoops
 	 */
 	gtk_window_get_default_size (GTK_WINDOW (backlight->priv->popup), &orig_w, &orig_h);
+#if GTK_CHECK_VERSION (3, 0, 0)
+	gtk_widget_get_preferred_size (backlight->priv->popup, &win_req, NULL);
+#else
 	gtk_widget_size_request (backlight->priv->popup, &win_req);
+#endif
 
 	if (win_req.width > orig_w) {
 		orig_w = win_req.width;
@@ -198,11 +202,20 @@ gpm_kbd_backlight_dialog_show (GpmKbdBacklight *backlight)
 	}
 
 	pointer_screen = NULL;
+#if GTK_CHECK_VERSION (3, 0, 0)
+	GdkDeviceManager *device_manager = gdk_display_get_device_manager (gtk_widget_get_display (backlight->priv->popup));
+	GdkDevice *device = gdk_device_manager_get_client_pointer (device_manager);
+	gdk_device_get_position (device,
+				 &pointer_screen,
+				 &pointer_x,
+				 &pointer_y);
+#else
 	gdk_display_get_pointer (gtk_widget_get_display (backlight->priv->popup),
 				 &pointer_screen,
 				 &pointer_x,
 				 &pointer_y,
 				 NULL);
+#endif
 	monitor = gdk_screen_get_monitor_at_point (pointer_screen,
 						   pointer_x,
 						   pointer_y);

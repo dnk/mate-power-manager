@@ -322,15 +322,12 @@ draw_when_not_composited (GtkWidget *widget, cairo_t *cr)
 expose_when_not_composited (GtkWidget *widget, GdkEventExpose *event)
 #endif
 {
-	MsdOsdWindow *window;
 #if GTK_CHECK_VERSION (3, 0, 0)
 	int width;
 	int height;
 #else
 	GtkAllocation allocation;
 #endif
-
-	window = MSD_OSD_WINDOW (widget);
 
 #if GTK_CHECK_VERSION (3, 0, 0)
 	width = gtk_widget_get_allocated_width (widget);
