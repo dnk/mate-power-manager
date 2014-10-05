@@ -1822,12 +1822,10 @@ gpm_manager_init (GpmManager *manager)
 	gboolean check_type_cpu;
 	gint timeout;
 	DBusGConnection *connection;
-	GDBusConnection *g_connection;
 	GError *error = NULL;
 
 	manager->priv = GPM_MANAGER_GET_PRIVATE (manager);
 	connection = dbus_g_bus_get (DBUS_BUS_SESSION, &error);
-	g_connection = g_bus_get_sync (G_BUS_TYPE_SESSION, NULL, &error);
 
 	/* We want to inhibit the systemd suspend options, and take care of them ourselves */
 	if (LOGIND_RUNNING()) {

@@ -331,6 +331,7 @@ gpm_kbd_backlight_on_dbus_signal (GDBusProxy *proxy,
    g_assert_not_reached ();
 }
 
+#if 0
 /**
  * gpm_kbd_backlight_dbus_method_call:
  * @connection:
@@ -430,6 +431,7 @@ gpm_kbd_backlight_dbus_property_set (GDBusConnection *connection,
    /* do nothing, no properties defined */
    return FALSE;
 }
+#endif
 
 static gboolean
 gpm_kbd_backlight_evaluate_power_source_and_set (GpmKbdBacklight *backlight)
