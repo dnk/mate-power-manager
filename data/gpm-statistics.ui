@@ -41,6 +41,7 @@
               <object class="GtkNotebook" id="notebook1">
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
+                <property name="expand">True</property>
                 <child>
                   <object class="GtkScrolledWindow" id="scrolledwindow1">
                     <property name="visible">True</property>
@@ -69,7 +70,6 @@
                 <child>
                   <object class="GtkVBox" id="vbox4">
                     <property name="visible">True</property>
-                    <property name="extension_events">cursor</property>
                     <property name="border_width">9</property>
                     <property name="orientation">vertical</property>
                     <property name="spacing">9</property>
@@ -240,7 +240,6 @@
                 <child>
                   <object class="GtkVBox" id="vbox2">
                     <property name="visible">True</property>
-                    <property name="extension_events">cursor</property>
                     <property name="border_width">9</property>
                     <property name="orientation">vertical</property>
                     <property name="spacing">9</property>
