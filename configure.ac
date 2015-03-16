@@ -1,6 +1,6 @@
 AC_PREREQ(2.63)
 
-AC_INIT([mate-power-manager], [1.9.0], [http://www.mate-desktop.org/])
+AC_INIT([mate-power-manager], [1.9.1], [http://www.mate-desktop.org/])
 AC_CONFIG_SRCDIR(src)
 AM_INIT_AUTOMAKE([1.9 no-dist-gzip dist-xz check-news tar-ustar])
 AC_CONFIG_HEADERS([config.h])
@@ -124,7 +124,7 @@ UNIQUE_REQUIRED=0.9.4
 LIBPANEL_REQUIRED=1.5.0
 XRANDR_REQUIRED=1.2.0
 CANBERRA_REQUIRED=0.10
-UPOWER_REQUIRED=0.9.1
+UPOWER_REQUIRED=0.9.5
 MATE_DESKTOP_REQUIRED=1.9.0
 
 dnl ----------------------------------------------------------------------------
