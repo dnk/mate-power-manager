@@ -670,7 +670,6 @@ gpm_prefs_init (GpmPrefs *prefs)
 {
 	GtkWidget *main_window;
 	GtkWidget *widget;
-	guint retval;
 	GError *error = NULL;
 	GPtrArray *devices = NULL;
 	UpDevice *device;
@@ -839,7 +838,7 @@ gpm_prefs_init (GpmPrefs *prefs)
 
 	error = NULL;
 	prefs->priv->builder = gtk_builder_new ();
-	retval = gtk_builder_add_from_file (prefs->priv->builder, GPM_DATA "/gpm-prefs.ui", &error);
+	gtk_builder_add_from_file (prefs->priv->builder, GPM_DATA "/gpm-prefs.ui", &error);
 
 	if (error) {
 		egg_error ("failed to load ui: %s", error->message);
