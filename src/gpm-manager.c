@@ -928,7 +928,11 @@ gpm_manager_button_pressed_cb (GpmButton *button, const gchar *type, GpmManager 
 				    _("Power Information"),
 				    message,
 				    GPM_MANAGER_NOTIFY_TIMEOUT_LONG,
+#if GTK_CHECK_VERSION (3, 10, 0)
+				    "dialog-information",
+#else
 				    GTK_STOCK_DIALOG_INFO,
+#endif
 				    NOTIFY_URGENCY_NORMAL);
 		g_free (message);
 	}
@@ -1143,8 +1147,13 @@ gpm_manager_engine_low_capacity_cb (GpmEngine *engine, UpDevice *device, GpmMana
 	/* TRANSLATORS: notify the user that that battery is broken as the capacity is very low */
 	message = g_strdup_printf (_("Battery has a very low capacity (%1.1f%%), "
 				     "which means that it may be old or broken."), capacity);
+#if GTK_CHECK_VERSION (3, 10, 0)
+	gpm_manager_notify (manager, &manager->priv->notification_general, title, message, GPM_MANAGER_NOTIFY_TIMEOUT_SHORT,
+			    "dialog-information", NOTIFY_URGENCY_LOW);
+#else
 	gpm_manager_notify (manager, &manager->priv->notification_general, title, message, GPM_MANAGER_NOTIFY_TIMEOUT_SHORT,
 			    GTK_STOCK_DIALOG_INFO, NOTIFY_URGENCY_LOW);
+#endif
 out:
 	g_free (message);
 }
@@ -1191,9 +1200,15 @@ gpm_manager_engine_fully_charged_cb (GpmEngine *engine, UpDevice *device, GpmMan
 
 		/* TRANSLATORS: show the charged notification */
 		title = ngettext ("Battery Charged", "Batteries Charged", plural);
+#if GTK_CHECK_VERSION (3, 10, 0)
+		gpm_manager_notify (manager, &manager->priv->notification_fully_charged,
+				    title, NULL, GPM_MANAGER_NOTIFY_TIMEOUT_SHORT,
+				    "dialog-information", NOTIFY_URGENCY_LOW);
+#else
 		gpm_manager_notify (manager, &manager->priv->notification_fully_charged,
 				    title, NULL, GPM_MANAGER_NOTIFY_TIMEOUT_SHORT,
 				    GTK_STOCK_DIALOG_INFO, NOTIFY_URGENCY_LOW);
+#endif
 	}
 out:
 	g_free (native_path);
