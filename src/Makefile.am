@@ -76,8 +76,6 @@ libgpmshared_a_SOURCES =				\
 	egg-dbus-monitor.c				\
 	egg-discrete.h					\
 	egg-discrete.c					\
-	egg-string.h					\
-	egg-string.c					\
 	egg-console-kit.h				\
 	egg-console-kit.c				\
 	gpm-common.h					\
@@ -157,8 +155,6 @@ mate_power_manager_SOURCES =				\
 	gpm-idle.c					\
 	gpm-load.h					\
 	gpm-load.c					\
-	gpm-disks.h					\
-	gpm-disks.c					\
 	gpm-control.h					\
 	gpm-control.c					\
 	gpm-button.h					\

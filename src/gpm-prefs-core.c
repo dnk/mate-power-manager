@@ -475,10 +475,6 @@ prefs_setup_ac (GpmPrefs *prefs)
 	g_settings_bind (prefs->priv->settings, GPM_SETTINGS_IDLE_DIM_AC,
 			 widget, "active",
 			 G_SETTINGS_BIND_DEFAULT);
-	widget = GTK_WIDGET (gtk_builder_get_object (prefs->priv->builder, "checkbutton_ac_spindown"));
-	g_settings_bind (prefs->priv->settings, GPM_SETTINGS_SPINDOWN_ENABLE_AC,
-			 widget, "active",
-			 G_SETTINGS_BIND_DEFAULT);
 
 	if (prefs->priv->has_button_lid == FALSE) {
 		widget = GTK_WIDGET (gtk_builder_get_object (prefs->priv->builder, "hbox_ac_lid"));
@@ -561,10 +557,6 @@ prefs_setup_battery (GpmPrefs *prefs)
 			 G_SETTINGS_BIND_DEFAULT);
 	widget = GTK_WIDGET (gtk_builder_get_object (prefs->priv->builder, "checkbutton_battery_display_dim"));
 	g_settings_bind (prefs->priv->settings, GPM_SETTINGS_IDLE_DIM_BATT,
-			 widget, "active",
-			 G_SETTINGS_BIND_DEFAULT);
-	widget = GTK_WIDGET (gtk_builder_get_object (prefs->priv->builder, "checkbutton_battery_spindown"));
-	g_settings_bind (prefs->priv->settings, GPM_SETTINGS_SPINDOWN_ENABLE_BATT,
 			 widget, "active",
 			 G_SETTINGS_BIND_DEFAULT);
 
@@ -719,7 +711,7 @@ gpm_prefs_init (GpmPrefs *prefs)
 					      &error
 					      );
 		if (error == NULL && res != NULL) {
-			g_variant_get(res,"(s)", &r);
+			g_variant_get(res,"(&s)", &r);
 			prefs->priv->can_shutdown = g_strcmp0(r,"yes")==0?TRUE:FALSE;
 			g_variant_unref (res);
 		} else if (error != NULL ) {
@@ -735,7 +727,7 @@ gpm_prefs_init (GpmPrefs *prefs)
 					      &error
 					      );
 		if (error == NULL && res != NULL) {
-			g_variant_get(res,"(s)", &r);
+			g_variant_get(res,"(&s)", &r);
 			prefs->priv->can_suspend = g_strcmp0(r,"yes")==0?TRUE:FALSE;
 			g_variant_unref (res);
 		} else if (error != NULL ) {
@@ -751,7 +743,7 @@ gpm_prefs_init (GpmPrefs *prefs)
 					      &error
 					      );
 		if (error == NULL && res != NULL) {
-			g_variant_get(res,"(s)", &r);
+			g_variant_get(res,"(&s)", &r);
 			prefs->priv->can_hibernate = g_strcmp0(r,"yes")==0?TRUE:FALSE;
 			g_variant_unref (res);
 		} else if (error != NULL ) {
@@ -891,6 +883,7 @@ gpm_prefs_finalize (GObject *object)
 	g_object_unref (prefs->priv->settings);
 	g_object_unref (prefs->priv->client);
 	g_object_unref (prefs->priv->console);
+	g_object_unref (prefs->priv->builder);
 
 	G_OBJECT_CLASS (gpm_prefs_parent_class)->finalize (object);
 }
