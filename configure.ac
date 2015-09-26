@@ -1,6 +1,6 @@
 AC_PREREQ(2.63)
 
-AC_INIT([mate-power-manager], [1.9.1], [http://www.mate-desktop.org/])
+AC_INIT([mate-power-manager], [1.10.1], [http://www.mate-desktop.org/])
 AC_CONFIG_SRCDIR(src)
 AM_INIT_AUTOMAKE([1.9 no-dist-gzip dist-xz check-news tar-ustar])
 AC_CONFIG_HEADERS([config.h])
@@ -14,10 +14,16 @@ AM_PROG_CC_C_O
 
 AC_PROG_INSTALL
 LT_INIT
-IT_PROG_INTLTOOL([0.35.0])
+IT_PROG_INTLTOOL([0.50.1])
 
 MATE_COMPILE_WARNINGS
 YELP_HELP_INIT
+
+# GLib min/max required versions
+AC_DEFINE([GLIB_VERSION_MAX_ALLOWED], [GLIB_VERSION_2_36],
+	[Warn on use of APIs added after GLib 2.36])
+AC_DEFINE([GLIB_VERSION_MIN_REQUIRED], [GLIB_VERSION_2_36],
+	[Warn on use of APIs deprecated before GLib 2.36])
 
 AC_PATH_PROG(GLIB_GENMARSHAL, glib-genmarshal)
 
@@ -122,7 +128,7 @@ LIBNOTIFY_REQUIRED=0.7.0
 CAIRO_REQUIRED=1.0.0
 UNIQUE_REQUIRED=0.9.4
 LIBPANEL_REQUIRED=1.5.0
-XRANDR_REQUIRED=1.2.0
+XRANDR_REQUIRED=1.3.0
 CANBERRA_REQUIRED=0.10
 UPOWER_REQUIRED=0.9.5
 MATE_DESKTOP_REQUIRED=1.9.0
@@ -180,10 +186,6 @@ PKG_CHECK_MODULES(X11, [
  xrender x11 xext xproto])
 
 PKG_CHECK_MODULES(X11, x11 xrender)
-
-PKG_CHECK_EXISTS(
- [xrandr >= 1.3],
- [AC_DEFINE(HAVE_XRANDR_13, 1, [xrandr 1.3 available])])
 
 PKG_CHECK_MODULES(LIBNOTIFY, libnotify >= $LIBNOTIFY_REQUIRED)
 
@@ -349,12 +351,12 @@ docs/Makefile
 man/Makefile
 help/Makefile
 po/Makefile.in
-tools/Makefile
 policy/Makefile
 data/Makefile
 data/mate-power-manager.desktop.in
 data/mate-power-preferences.desktop.in
 data/mate-power-statistics.desktop.in
+data/org.mate.power-manager.gschema.xml
 data/icons/Makefile
 data/icons/16x16/Makefile
 data/icons/16x16/actions/Makefile
