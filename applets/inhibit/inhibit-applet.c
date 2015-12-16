@@ -165,37 +165,6 @@ gpm_applet_uninhibit (GpmInhibitApplet *applet,
 
 	return ret;
 }
-#if 0
-static gboolean
-gpm_applet_has_inhibit (GpmInhibitApplet *applet,
-			gboolean        *has_inhibit)
-{
-	GError  *error = NULL;
-	gboolean ret;
-	DBusGProxy *proxy;
-
-	proxy = egg_dbus_proxy_get_proxy (applet->gproxy);
-	if (proxy == NULL) {
-		g_warning ("not connected");
-		return FALSE;
-	}
-
-	ret = dbus_g_proxy_call (proxy, "HasInhibit", &error,
-				 G_TYPE_INVALID,
-				 G_TYPE_BOOLEAN, has_inhibit,
-				 G_TYPE_INVALID);
-	if (error) {
-		g_debug ("ERROR: %s", error->message);
-		g_error_free (error);
-	}
-	if (!ret) {
-		/* abort as the DBUS method failed */
-		g_warning ("HasInhibit failed!");
-	}
-
-	return ret;
-}
-#endif
 
 /**
  * gpm_applet_get_icon:
@@ -504,7 +473,7 @@ gpm_applet_dialog_about_cb (GtkAction *action, gpointer data)
 	mate_about_dialog_set_translator_credits (about, translator_credits);
 	mate_about_dialog_set_logo (about, logo);
 	mate_about_dialog_set_license (about, license_trans);
-	mate_about_dialog_set_website (about, GPM_HOMEPAGE_URL);
+	mate_about_dialog_set_website (about, "http://www.mate-desktop.org/");
 
 	g_signal_connect (G_OBJECT(about), "response",
 			  G_CALLBACK(gtk_widget_destroy), NULL);
