@@ -1,3 +1,15 @@
+Version 1.14.0
+~~~~~~~~~~~~~~
+Released: 2016-04-07
+
+* News:
+ - Drop MateConf migration script
+ - Fix possible crash when an Xorg function call fails
+ - GTK+3: fix deprecations in brightness applet
+ - Some more fixes and cleanups
+ - Translations update
+ - Fix Changelog generation
+
 Version 1.12.1
 ~~~~~~~~~~~~~~
 Released: 2015-11-30
