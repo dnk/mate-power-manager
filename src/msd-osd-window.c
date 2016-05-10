@@ -195,34 +195,23 @@ msd_osd_window_draw_rounded_rectangle (cairo_t* cr,
         cairo_close_path (cr);
 }
 
-#if GTK_CHECK_VERSION (3, 0, 0)
-void
-msd_osd_window_color_reverse (const GdkRGBA  *a,
-                              GdkRGBA        *b)
-#else
+#if !GTK_CHECK_VERSION (3, 0, 0)
 void
 msd_osd_window_color_reverse (const GdkColor *a,
                               GdkColor       *b)
-#endif
 {
-#if !GTK_CHECK_VERSION (3, 0, 0)
         gdouble red;
         gdouble green;
         gdouble blue;
-#endif
         gdouble h;
         gdouble s;
         gdouble v;
 
-#if GTK_CHECK_VERSION (3, 0, 0)
-        gtk_rgb_to_hsv (a->red, a->green, a->blue, &h, &s, &v);
-#else
         red = (gdouble) a->red / 65535.0;
         green = (gdouble) a->green / 65535.0;
         blue = (gdouble) a->blue / 65535.0;
 
         gtk_rgb_to_hsv (red, green, blue, &h, &s, &v);
-#endif
 
         v = 0.5 + (0.5 - v);
         if (v > 1.0)
@@ -230,17 +219,13 @@ msd_osd_window_color_reverse (const GdkColor *a,
         else if (v < 0.0)
                 v = 0.0;
 
-#if GTK_CHECK_VERSION (3, 0, 0)
-        gtk_hsv_to_rgb (h, s, v, &b->red, &b->green, &b->blue);
-        b->alpha = a->alpha;
-#else
         gtk_hsv_to_rgb (h, s, v, &red, &green, &blue);
 
         b->red = red * 65535.0;
         b->green = green * 65535.0;
         b->blue = blue * 65535.0;
-#endif
 }
+#endif
 
 /* This is our expose/draw-event handler when the window is in a compositing manager.
  * We draw everything by hand, using Cairo, so that we can have a nice
@@ -639,6 +624,11 @@ msd_osd_window_class_init (MsdOsdWindowClass *klass)
                                                         G_TYPE_NONE, 1,
                                                         G_TYPE_POINTER);
 
+#if GTK_CHECK_VERSION (3, 20, 0)
+        GtkWidgetClass *widget_class  = GTK_WIDGET_CLASS (class);
+        gtk_widget_class_set_css_name (widget_class, "MsdOsdWindow");
+#endif
+
         g_type_class_add_private (klass, sizeof (MsdOsdWindowPrivate));
 }
 
@@ -685,6 +675,11 @@ msd_osd_window_init (MsdOsdWindow *window)
 
                 gtk_window_set_decorated (GTK_WINDOW (window), FALSE);
                 gtk_widget_set_app_paintable (GTK_WIDGET (window), TRUE);
+
+#if GTK_CHECK_VERSION (3, 0, 0)
+                GtkStyleContext *style = gtk_widget_get_style_context (GTK_WIDGET (window));
+                gtk_style_context_add_class (style, "window-frame");
+#endif
 
                 /* assume 130x130 on a 640x480 display and scale from there */
                 scalew = gdk_screen_get_width (screen) / 640.0;
