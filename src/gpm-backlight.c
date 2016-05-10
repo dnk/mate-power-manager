@@ -390,7 +390,7 @@ gpm_settings_key_changed_cb (GSettings *settings, const gchar *key, GpmBacklight
 		      "on-battery", &on_battery,
 		      NULL);
 
-	if (!on_battery && g_strcmp0 (key, GPM_SETTINGS_BRIGHTNESS_AC) == 0) {
+	if (g_strcmp0 (key, GPM_SETTINGS_BRIGHTNESS_AC) == 0) {
 		backlight->priv->master_percentage = g_settings_get_double (settings, key);
 		gpm_backlight_brightness_evaluate_and_set (backlight, FALSE, TRUE);
 
@@ -443,6 +443,7 @@ gpm_backlight_button_pressed_cb (GpmButton *button, const gchar *type, GpmBackli
 	GError *error = NULL;
 	guint percentage;
 	gboolean hw_changed;
+	gboolean on_battery;
 	egg_debug ("Button press event type=%s", type);
 
 	if (g_strcmp0 (type, GPM_BUTTON_BRIGHT_UP) == 0) {
@@ -458,6 +459,13 @@ gpm_backlight_button_pressed_cb (GpmButton *button, const gchar *type, GpmBackli
 			gpm_backlight_dialog_show (backlight);
 			/* save the new percentage */
 			backlight->priv->master_percentage = percentage;
+			/* if using AC power supply, save the new brightness settings */
+			g_object_get (backlight->priv->client, "on-battery", &on_battery, NULL);
+			if (!on_battery) {
+				egg_debug ("saving brightness for ac supply: %i", percentage);
+				g_settings_set_double (backlight->priv->settings, GPM_SETTINGS_BRIGHTNESS_AC,
+						       percentage*1.0);
+			}
 		}
 		/* we emit a signal for the brightness applet */
 		if (ret && hw_changed) {
@@ -477,6 +485,13 @@ gpm_backlight_button_pressed_cb (GpmButton *button, const gchar *type, GpmBackli
 			gpm_backlight_dialog_show (backlight);
 			/* save the new percentage */
 			backlight->priv->master_percentage = percentage;
+			/* if using AC power supply, save the new brightness settings */
+			g_object_get (backlight->priv->client, "on-battery", &on_battery, NULL);
+			if (!on_battery) {
+				egg_debug ("saving brightness for ac supply: %i", percentage);
+				g_settings_set_double (backlight->priv->settings, GPM_SETTINGS_BRIGHTNESS_AC,
+						       percentage*1.0);
+			}
 		}
 		/* we emit a signal for the brightness applet */
 		if (ret && hw_changed) {
@@ -577,7 +592,7 @@ idle_changed_cb (GpmIdle *idle, GpmIdleMode mode, GpmBacklight *backlight)
 	if (mode == GPM_IDLE_MODE_NORMAL) {
 		/* sync lcd brightness */
 		gpm_backlight_notify_system_idle_changed (backlight, FALSE);
-		gpm_backlight_brightness_evaluate_and_set (backlight, FALSE, FALSE);
+		gpm_backlight_brightness_evaluate_and_set (backlight, FALSE, TRUE);
 
 		/* ensure backlight is on */
 		ret = gpm_dpms_set_mode (backlight->priv->dpms, GPM_DPMS_MODE_ON, &error);
@@ -590,7 +605,7 @@ idle_changed_cb (GpmIdle *idle, GpmIdleMode mode, GpmBacklight *backlight)
 
 		/* sync lcd brightness */
 		gpm_backlight_notify_system_idle_changed (backlight, TRUE);
-		gpm_backlight_brightness_evaluate_and_set (backlight, FALSE, FALSE);
+		gpm_backlight_brightness_evaluate_and_set (backlight, FALSE, TRUE);
 
 		/* ensure backlight is on */
 		ret = gpm_dpms_set_mode (backlight->priv->dpms, GPM_DPMS_MODE_ON, &error);
@@ -603,7 +618,7 @@ idle_changed_cb (GpmIdle *idle, GpmIdleMode mode, GpmBacklight *backlight)
 
 		/* sync lcd brightness */
 		gpm_backlight_notify_system_idle_changed (backlight, TRUE);
-		gpm_backlight_brightness_evaluate_and_set (backlight, FALSE, FALSE);
+		gpm_backlight_brightness_evaluate_and_set (backlight, FALSE, TRUE);
 
 		/* get the DPMS state we're supposed to use on the power state */
 		g_object_get (backlight->priv->client,
