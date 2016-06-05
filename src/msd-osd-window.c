@@ -55,11 +55,7 @@ struct MsdOsdWindowPrivate
 };
 
 enum {
-#if GTK_CHECK_VERSION (3, 0, 0)
-        DRAW_WHEN_COMPOSITED,
-#else
         EXPOSE_WHEN_COMPOSITED,
-#endif
         LAST_SIGNAL
 };
 
@@ -227,7 +223,7 @@ msd_osd_window_color_reverse (const GdkColor *a,
 }
 #endif
 
-/* This is our expose/draw-event handler when the window is in a compositing manager.
+/* This is our expose-event handler when the window is in a compositing manager.
  * We draw everything by hand, using Cairo, so that we can have a nice
  * transparent/rounded look.
  */
@@ -308,11 +304,7 @@ expose_when_composited (GtkWidget *widget, GdkEventExpose *event)
         cairo_stroke (cr);
 #endif
 
-#if GTK_CHECK_VERSION (3, 0, 0)
-        g_signal_emit (window, signals[DRAW_WHEN_COMPOSITED], 0, cr);
-#else
         g_signal_emit (window, signals[EXPOSE_WHEN_COMPOSITED], 0, cr);
-#endif
 
         cairo_destroy (cr);
 
@@ -323,6 +315,7 @@ expose_when_composited (GtkWidget *widget, GdkEventExpose *event)
 
         cairo_set_source_surface (context, surface, 0, 0);
         cairo_paint_with_alpha (context, window->priv->fade_out_alpha);
+
  done:
         if (surface != NULL) {
                 cairo_surface_destroy (surface);
@@ -332,7 +325,7 @@ expose_when_composited (GtkWidget *widget, GdkEventExpose *event)
 #endif
 }
 
-/* This is our expose/draw-event handler when the window is *not* in a compositing manager.
+/* This is our expose-event handler when the window is *not* in a compositing manager.
  * We just draw a rectangular frame by hand.  We do this with hardcoded drawing code,
  * instead of GtkFrame, to avoid changing the window's internal widget hierarchy:  in
  * either case (composited or non-composited), callers can assume that this works
@@ -504,43 +497,78 @@ msd_osd_window_real_realize (GtkWidget *widget)
 }
 
 static void
+#if GTK_CHECK_VERSION (3, 0, 0)
+msd_osd_window_style_updated (GtkWidget *widget)
+{
+        GtkStyleContext *context;
+        GtkBorder padding;
+
+        GTK_WIDGET_CLASS (msd_osd_window_parent_class)->style_updated (widget);
+
+        /* We set our border width to 12 (per the MATE standard), plus the
+         * padding of the frame that we draw in our expose handler.  This will
+         * make our child be 12 pixels away from the frame.
+         */
+
+        context = gtk_widget_get_style_context (widget);
+        gtk_style_context_get_padding (context, GTK_STATE_FLAG_NORMAL, &padding);
+        gtk_container_set_border_width (GTK_CONTAINER (widget), 12 + MAX (padding.left, padding.top));
+}
+#else
 msd_osd_window_style_set (GtkWidget *widget,
                           GtkStyle  *previous_style)
 {
-#if !GTK_CHECK_VERSION (3, 0, 0)
         GtkStyle *style;
-        guint border_width;
-#endif
 
         GTK_WIDGET_CLASS (msd_osd_window_parent_class)->style_set (widget, previous_style);
 
-
-#if !GTK_CHECK_VERSION (3, 0, 0)
         /* We set our border width to 12 (per the MATE standard), plus the
-         * thickness of the frame that we draw in our expose/draw handler.  This will
+         * thickness of the frame that we draw in our expose handler.  This will
          * make our child be 12 pixels away from the frame.
          */
+
         style = gtk_widget_get_style (widget);
-        border_width = 12 + MAX (style->xthickness, style->ythickness);
-        gtk_container_set_border_width (GTK_CONTAINER (widget), border_width);
-#endif
+        gtk_container_set_border_width (GTK_CONTAINER (widget), 12 + MAX (style->xthickness, style->ythickness));
 }
+#endif
 
 #if GTK_CHECK_VERSION (3, 0, 0)
 static void
 msd_osd_window_get_preferred_width (GtkWidget *widget,
-                                    gint *minimum_width,
-                                    gint *natural_width)
+                                    gint      *minimum,
+                                    gint      *natural)
 {
-        GTK_WIDGET_CLASS (msd_osd_window_parent_class)->get_preferred_width (widget, minimum_width, natural_width);
+        GtkStyleContext *context;
+        GtkBorder padding;
+
+        GTK_WIDGET_CLASS (msd_osd_window_parent_class)->get_preferred_width (widget, minimum, natural);
+
+        /* See the comment in msd_osd_window_style_updated() for why we add the padding here */
+
+        context = gtk_widget_get_style_context (widget);
+        gtk_style_context_get_padding (context, GTK_STATE_FLAG_NORMAL, &padding);
+
+        *minimum += padding.left;
+        *natural += padding.left;
 }
 
 static void
 msd_osd_window_get_preferred_height (GtkWidget *widget,
-                                     gint *minimum_height,
-                                     gint *natural_height)
+                                     gint      *minimum,
+                                     gint      *natural)
 {
-        GTK_WIDGET_CLASS (msd_osd_window_parent_class)->get_preferred_height (widget, minimum_height, natural_height);
+        GtkStyleContext *context;
+        GtkBorder padding;
+
+        GTK_WIDGET_CLASS (msd_osd_window_parent_class)->get_preferred_height (widget, minimum, natural);
+
+        /* See the comment in msd_osd_window_style_updated() for why we add the padding here */
+
+        context = gtk_widget_get_style_context (widget);
+        gtk_style_context_get_padding (context, GTK_STATE_FLAG_NORMAL, &padding);
+
+        *minimum += padding.top;
+        *natural += padding.top;
 }
 #else
 static void
@@ -597,18 +625,19 @@ msd_osd_window_class_init (MsdOsdWindowClass *klass)
         widget_class->show = msd_osd_window_real_show;
         widget_class->hide = msd_osd_window_real_hide;
         widget_class->realize = msd_osd_window_real_realize;
-        widget_class->style_set = msd_osd_window_style_set;
 #if GTK_CHECK_VERSION (3, 0, 0)
+        widget_class->style_updated = msd_osd_window_style_updated;
         widget_class->get_preferred_width = msd_osd_window_get_preferred_width;
         widget_class->get_preferred_height = msd_osd_window_get_preferred_height;
         widget_class->draw = msd_osd_window_draw;
 #else
+        widget_class->style_set = msd_osd_window_style_set;
         widget_class->size_request = msd_osd_window_size_request;
         widget_class->expose_event = msd_osd_window_expose_event;
 #endif
 
 #if GTK_CHECK_VERSION (3, 0, 0)
-        signals[DRAW_WHEN_COMPOSITED] = g_signal_new ("draw-when-composited",
+        signals[EXPOSE_WHEN_COMPOSITED] = g_signal_new ("draw-when-composited",
 #else
         signals[EXPOSE_WHEN_COMPOSITED] = g_signal_new ("expose-when-composited",
 #endif
@@ -625,7 +654,6 @@ msd_osd_window_class_init (MsdOsdWindowClass *klass)
                                                         G_TYPE_POINTER);
 
 #if GTK_CHECK_VERSION (3, 20, 0)
-        GtkWidgetClass *widget_class  = GTK_WIDGET_CLASS (class);
         gtk_widget_class_set_css_name (widget_class, "MsdOsdWindow");
 #endif
 

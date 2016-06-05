@@ -22,6 +22,7 @@
 #include <gio/gio.h>
 #include <glib.h>
 #include <libupower-glib/upower.h>
+#include <gtk/gtk.h>
 
 #include "egg-debug.h"
 #include "gpm-button.h"
