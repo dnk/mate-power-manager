@@ -56,7 +56,7 @@
 #include "gpm-backlight.h"
 #include "gpm-kbd-backlight.h"
 #include "gpm-session.h"
-#include "gpm-stock-icons.h"
+#include "gpm-icon-names.h"
 #include "gpm-tray-icon.h"
 #include "gpm-engine.h"
 #include "gpm-upower.h"
@@ -579,13 +579,13 @@ gpm_manager_sleep_failure (GpmManager *manager, gboolean is_suspend, const gchar
 		g_string_append (string, _("Computer failed to suspend."));
 		/* TRANSLATORS: title text */
 		title = _("Failed to suspend");
-		icon = GPM_STOCK_SUSPEND;
+		icon = GPM_ICON_SUSPEND;
 	} else {
 		/* TRANSLATORS: message text */
 		g_string_append (string, _("Computer failed to hibernate."));
 		/* TRANSLATORS: title text */
 		title = _("Failed to hibernate");
-		icon = GPM_STOCK_HIBERNATE;
+		icon = GPM_ICON_HIBERNATE;
 	}
 
 	/* TRANSLATORS: message text */
@@ -926,11 +926,7 @@ gpm_manager_button_pressed_cb (GpmButton *button, const gchar *type, GpmManager 
 				    _("Power Information"),
 				    message,
 				    GPM_MANAGER_NOTIFY_TIMEOUT_LONG,
-#if GTK_CHECK_VERSION (3, 10, 0)
 				    "dialog-information",
-#else
-				    GTK_STOCK_DIALOG_INFO,
-#endif
 				    NOTIFY_URGENCY_NORMAL);
 		g_free (message);
 	}
@@ -1119,13 +1115,8 @@ gpm_manager_engine_low_capacity_cb (GpmEngine *engine, UpDevice *device, GpmMana
 	/* TRANSLATORS: notify the user that that battery is broken as the capacity is very low */
 	message = g_strdup_printf (_("Battery has a very low capacity (%1.1f%%), "
 				     "which means that it may be old or broken."), capacity);
-#if GTK_CHECK_VERSION (3, 10, 0)
 	gpm_manager_notify (manager, &manager->priv->notification_general, title, message, GPM_MANAGER_NOTIFY_TIMEOUT_SHORT,
 			    "dialog-information", NOTIFY_URGENCY_LOW);
-#else
-	gpm_manager_notify (manager, &manager->priv->notification_general, title, message, GPM_MANAGER_NOTIFY_TIMEOUT_SHORT,
-			    GTK_STOCK_DIALOG_INFO, NOTIFY_URGENCY_LOW);
-#endif
 out:
 	g_free (message);
 }
@@ -1172,15 +1163,9 @@ gpm_manager_engine_fully_charged_cb (GpmEngine *engine, UpDevice *device, GpmMan
 
 		/* TRANSLATORS: show the charged notification */
 		title = ngettext ("Battery Charged", "Batteries Charged", plural);
-#if GTK_CHECK_VERSION (3, 10, 0)
 		gpm_manager_notify (manager, &manager->priv->notification_fully_charged,
 				    title, NULL, GPM_MANAGER_NOTIFY_TIMEOUT_SHORT,
 				    "dialog-information", NOTIFY_URGENCY_LOW);
-#else
-		gpm_manager_notify (manager, &manager->priv->notification_fully_charged,
-				    title, NULL, GPM_MANAGER_NOTIFY_TIMEOUT_SHORT,
-				    GTK_STOCK_DIALOG_INFO, NOTIFY_URGENCY_LOW);
-#endif
 	}
 out:
 	g_free (native_path);
@@ -1805,12 +1790,13 @@ static void
 gpm_manager_init (GpmManager *manager)
 {
 	gboolean check_type_cpu;
-	gint timeout;
 	DBusGConnection *connection;
+	GDBusConnection *g_connection;
 	GError *error = NULL;
 
 	manager->priv = GPM_MANAGER_GET_PRIVATE (manager);
 	connection = dbus_g_bus_get (DBUS_BUS_SESSION, &error);
+	g_connection = g_bus_get_sync (G_BUS_TYPE_SESSION, NULL, &error);
 
 	/* We want to inhibit the systemd suspend options, and take care of them ourselves */
 	if (LOGIND_RUNNING()) {
