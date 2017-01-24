@@ -22,11 +22,8 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#  include <config.h>
+#include <config.h>
 #endif
-
-/* FIXME: gdk_gc_* needs porting to cairo */
-#undef GDK_DISABLE_DEPRECATED
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,10 +33,8 @@
 #include <glib-object.h>
 #include <glib/gi18n.h>
 #include <dbus/dbus-glib.h>
-#include <libmate-desktop/mate-aboutdialog.h>
 
 #include "egg-debug.h"
-#include "egg-dbus-monitor.h"
 #include "gpm-common.h"
 
 #define GPM_TYPE_INHIBIT_APPLET		(gpm_inhibit_applet_get_type ())
@@ -59,7 +54,7 @@ typedef struct{
 	/* connection to g-p-m */
 	DBusGProxy *proxy;
 	DBusGConnection *connection;
-	EggDbusMonitor *monitor;
+	guint bus_watch_id;
 	guint level;
 	/* a cache for panel size */
 	gint size;
@@ -253,25 +248,15 @@ static gboolean
 gpm_applet_draw_cb (GpmInhibitApplet *applet)
 {
 	gint w, h, bg_type;
-#if GTK_CHECK_VERSION (3, 0, 0)
 	GdkRGBA color;
 	cairo_t *cr;
 	cairo_pattern_t *pattern;
-#else
-	GdkColor color;
-	GdkGC *gc;
-	GdkPixmap *background;
-#endif
+	GtkStyleContext *context;
 	GtkAllocation allocation;
 
 	if (gtk_widget_get_window (GTK_WIDGET(applet)) == NULL) {
 		return FALSE;
 	}
-
-#if !GTK_CHECK_VERSION (3, 0, 0)
-	/* Clear the window so we can draw on it later */
-	gdk_window_clear(gtk_widget_get_window (GTK_WIDGET (applet)));
-#endif
 
 	/* retrieve applet size */
 	gpm_applet_get_icon (applet);
@@ -289,58 +274,29 @@ gpm_applet_draw_cb (GpmInhibitApplet *applet)
 	w = allocation.width;
 	h = allocation.height;
 
-#if GTK_CHECK_VERSION (3, 0, 0)
 	cr = gdk_cairo_create (gtk_widget_get_window (GTK_WIDGET(applet)));
-#else
-	gc = gdk_gc_new (gtk_widget_get_window (GTK_WIDGET(applet)));
-#endif
 
 	/* draw pixmap background */
-#if GTK_CHECK_VERSION (3, 0, 0)
 	bg_type = mate_panel_applet_get_background (MATE_PANEL_APPLET (applet), &color, &pattern);
-#else
-	bg_type = mate_panel_applet_get_background (MATE_PANEL_APPLET (applet), &color, &background);
-#endif
 	if (bg_type == PANEL_PIXMAP_BACKGROUND) {
 		/* fill with given background pixmap */
-#if GTK_CHECK_VERSION (3, 0, 0)
 		cairo_set_source (cr, pattern);
 		cairo_rectangle (cr, 0, 0, w, h);
 		cairo_fill (cr);
-#else
-		gdk_draw_drawable (gtk_widget_get_window (GTK_WIDGET(applet)), gc, background, 0, 0, 0, 0, w, h);
-#endif
 	}
 	
 	/* draw color background */
 	if (bg_type == PANEL_COLOR_BACKGROUND) {
-#if GTK_CHECK_VERSION (3, 0, 0)
 		gdk_cairo_set_source_rgba (cr, &color);
 		cairo_rectangle (cr, 0, 0, w, h);
 		cairo_fill (cr);
-#else
-		gdk_gc_set_rgb_fg_color (gc,&color);
-		gdk_gc_set_fill (gc,GDK_SOLID);
-		gdk_draw_rectangle (gtk_widget_get_window (GTK_WIDGET(applet)), gc, TRUE, 0, 0, w, h);
-#endif
 	}
 
 	/* draw icon at center */
-#if GTK_CHECK_VERSION (3, 0, 0)
 	gdk_cairo_set_source_pixbuf (cr, applet->icon, (w - applet->icon_width)/2, (h - applet->icon_height)/2);
 	cairo_paint (cr);
-#else
-	gdk_draw_pixbuf (gtk_widget_get_window (GTK_WIDGET(applet)), gc, applet->icon,
-			 0, 0, (w - applet->icon_width)/2, (h - applet->icon_height)/2,
-			 applet->icon_width, applet->icon_height,
-			 GDK_RGB_DITHER_NONE, 0, 0);
-#endif
 
-#if GTK_CHECK_VERSION (3, 0, 0)
 	cairo_destroy (cr);
-#else
-	g_object_unref (gc);
-#endif
 
 	return TRUE;
 }
@@ -353,11 +309,7 @@ gpm_applet_draw_cb (GpmInhibitApplet *applet)
 static void
 gpm_applet_change_background_cb (GpmInhibitApplet *applet,
 				 MatePanelAppletBackgroundType arg1,
-#if GTK_CHECK_VERSION (3, 0, 0)
 				 cairo_pattern_t *arg2,
-#else
-				 GdkColor *arg2, GdkPixmap *arg3,
-#endif
 				 gpointer data)
 {
 	gtk_widget_queue_draw (GTK_WIDGET (applet));
@@ -427,7 +379,7 @@ gpm_applet_click_cb (GpmInhibitApplet *applet, GdkEventButton *event)
 static void
 gpm_applet_dialog_about_cb (GtkAction *action, gpointer data)
 {
-	MateAboutDialog *about;
+	GtkAboutDialog *about;
 
 	GdkPixbuf *logo =
 		gtk_icon_theme_load_icon (gtk_icon_theme_get_default (),
@@ -439,6 +391,11 @@ gpm_applet_dialog_about_cb (GtkAction *action, gpointer data)
 		"Richard Hughes <richard@hughsie.com>",
 		NULL
 	};
+
+	char copyright[] = \
+		"Copyright \xc2\xa9 2012-2016 MATE developers\n"
+		"Copyright \xc2\xa9 2006-2007 Richard Hughes";
+
 	const char *documenters [] = {
 		NULL
 	};
@@ -463,17 +420,17 @@ gpm_applet_dialog_about_cb (GtkAction *action, gpointer data)
 	license_trans = g_strconcat (_(license[0]), "\n\n", _(license[1]), "\n\n",
 				     _(license[2]), "\n\n", _(license[3]), "\n", NULL);
 
-	about = (MateAboutDialog*) mate_about_dialog_new ();
-	mate_about_dialog_set_program_name (about, GPM_INHIBIT_APPLET_NAME);
-	mate_about_dialog_set_version (about, VERSION);
-	mate_about_dialog_set_copyright (about, _("Copyright \xc2\xa9 2006-2007 Richard Hughes"));
-	mate_about_dialog_set_comments (about, GPM_INHIBIT_APPLET_DESC);
-	mate_about_dialog_set_authors (about, authors);
-	mate_about_dialog_set_documenters (about, documenters);
-	mate_about_dialog_set_translator_credits (about, translator_credits);
-	mate_about_dialog_set_logo (about, logo);
-	mate_about_dialog_set_license (about, license_trans);
-	mate_about_dialog_set_website (about, "http://www.mate-desktop.org/");
+	about = (GtkAboutDialog*) gtk_about_dialog_new ();
+	gtk_about_dialog_set_program_name (about, GPM_INHIBIT_APPLET_NAME);
+	gtk_about_dialog_set_version (about, VERSION);
+	gtk_about_dialog_set_copyright (about, copyright);
+	gtk_about_dialog_set_comments (about, GPM_INHIBIT_APPLET_DESC);
+	gtk_about_dialog_set_authors (about, authors);
+	gtk_about_dialog_set_documenters (about, documenters);
+	gtk_about_dialog_set_translator_credits (about, translator_credits);
+	gtk_about_dialog_set_logo (about, logo);
+	gtk_about_dialog_set_license (about, license_trans);
+	gtk_about_dialog_set_website (about, "http://www.mate-desktop.org/");
 
 	g_signal_connect (G_OBJECT(about), "response",
 			  G_CALLBACK(gtk_widget_destroy), NULL);
@@ -504,12 +461,9 @@ gpm_applet_destroy_cb (GtkWidget *widget)
 {
 	GpmInhibitApplet *applet = GPM_INHIBIT_APPLET(widget);
 
-	if (applet->monitor != NULL) {
-		g_object_unref (applet->monitor);
-	}
-	if (applet->icon != NULL) {
+	g_bus_unwatch_name (applet->bus_watch_id);
+	if (applet->icon != NULL)
 		g_object_unref (applet->icon);
-	}
 }
 
 /**
@@ -577,27 +531,32 @@ gpm_inhibit_applet_dbus_disconnect (GpmInhibitApplet *applet)
 }
 
 /**
- * monitor_connection_cb:
- * @proxy: The dbus raw proxy
- * @status: The status of the service, where TRUE is connected
- * @screensaver: This class instance
+ * gpm_inhibit_applet_name_appeared_cb:
  **/
 static void
-monitor_connection_cb (EggDbusMonitor           *monitor,
-		     gboolean	          status,
+gpm_inhibit_applet_name_appeared_cb (GDBusConnection *connection,
+				     const gchar *name,
+				     const gchar *name_owner,
 		     GpmInhibitApplet *applet)
 {
-	if (status) {
 		gpm_inhibit_applet_dbus_connect (applet);
 		gpm_applet_update_tooltip (applet);
 		gpm_applet_get_icon (applet);
 		gpm_applet_draw_cb (applet);
-	} else {
+}
+
+/**
+ * gpm_inhibit_applet_name_vanished_cb:
+ **/
+void
+gpm_inhibit_applet_name_vanished_cb (GDBusConnection *connection,
+				     const gchar *name,
+				     GpmInhibitApplet *applet)
+{
 		gpm_inhibit_applet_dbus_disconnect (applet);
 		gpm_applet_update_tooltip (applet);
 		gpm_applet_get_icon (applet);
 		gpm_applet_draw_cb (applet);
-	}
 }
 
 /**
@@ -620,12 +579,14 @@ gpm_inhibit_applet_init (GpmInhibitApplet *applet)
 	gtk_icon_theme_append_search_path (gtk_icon_theme_get_default (),
                                            GPM_DATA G_DIR_SEPARATOR_S "icons");
 
-	applet->monitor = egg_dbus_monitor_new ();
-	g_signal_connect (applet->monitor, "connection-changed",
-			  G_CALLBACK (monitor_connection_cb), applet);
-	connection = dbus_g_bus_get (DBUS_BUS_SESSION, NULL);
-	egg_dbus_monitor_assign (applet->monitor, connection, GS_DBUS_SERVICE);
-	gpm_inhibit_applet_dbus_connect (applet);
+	/* monitor the daemon */
+	applet->bus_watch_id =
+		g_bus_watch_name (G_BUS_TYPE_SESSION,
+				  GS_DBUS_SERVICE,
+				  G_BUS_NAME_WATCHER_FLAGS_NONE,
+				  (GBusNameAppearedCallback) gpm_inhibit_applet_name_appeared_cb,
+				  (GBusNameVanishedCallback) gpm_inhibit_applet_name_vanished_cb,
+				  applet, NULL);
 
 	/* prepare */
 	mate_panel_applet_set_flags (MATE_PANEL_APPLET (applet), MATE_PANEL_APPLET_EXPAND_MINOR);
@@ -640,18 +601,13 @@ gpm_inhibit_applet_init (GpmInhibitApplet *applet)
 	g_signal_connect (G_OBJECT(applet), "button-press-event",
 			  G_CALLBACK(gpm_applet_click_cb), NULL);
 
-#if GTK_CHECK_VERSION (3, 0, 0)
 	g_signal_connect (G_OBJECT(applet), "draw",
 			  G_CALLBACK(gpm_applet_draw_cb), NULL);
-#else
-	g_signal_connect (G_OBJECT(applet), "expose-event",
-			  G_CALLBACK(gpm_applet_draw_cb), NULL);
-#endif
 
 	/* We use g_signal_connect_after because letting the panel draw
 	 * the background is the only way to have the correct
 	 * background when a theme defines a background picture. */
-	g_signal_connect_after (G_OBJECT(applet), "expose-event",
+	g_signal_connect_after (G_OBJECT(applet), "draw",
 				G_CALLBACK(gpm_applet_draw_cb), NULL);
 
 	g_signal_connect (G_OBJECT(applet), "change-background",

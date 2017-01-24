@@ -30,9 +30,6 @@
 #include <glib/gi18n.h>
 #include <gtk/gtk.h>
 
-/* local .la */
-#include <egg-unique.h>
-
 #include "gpm-common.h"
 #include "egg-debug.h"
 #include "gpm-prefs-core.h"
@@ -50,27 +47,15 @@ gpm_prefs_help_cb (GpmPrefs *prefs)
 }
 
 /**
- * gpm_prefs_close_cb
- * @prefs: This prefs class instance
- *
- * What to do when we are asked to close for whatever reason
- **/
-static void
-gpm_prefs_close_cb (GpmPrefs *prefs)
-{
-	gtk_main_quit ();
-}
-
-/**
  * gpm_prefs_activated_cb
  * @prefs: This prefs class instance
  *
  * We have been asked to show the window
  **/
 static void
-gpm_prefs_activated_cb (EggUnique *egg_unique, GpmPrefs *prefs)
+gpm_prefs_activated_cb (GtkApplication *app, GpmPrefs *prefs)
 {
-	gpm_prefs_activate_window (prefs);
+	gpm_prefs_activate_window (app, prefs);
 }
 
 /**
@@ -83,7 +68,9 @@ main (int argc, char **argv)
 	GOptionContext *context;
 	GpmPrefs *prefs = NULL;
 	gboolean ret;
-	EggUnique *egg_unique;
+	GtkApplication *app;
+	GtkWidget *window;
+	gint status;
 
 	const GOptionEntry options[] = {
 		{ "verbose", '\0', 0, G_OPTION_ARG_NONE, &verbose,
@@ -102,32 +89,28 @@ main (int argc, char **argv)
 	g_option_context_add_group (context, gtk_get_option_group (FALSE));
 	g_option_context_parse (context, &argc, &argv, NULL);
 
-	gtk_init (&argc, &argv);
 	egg_debug_init (verbose);
 
-	/* are we already activated? */
-	egg_unique = egg_unique_new ();
-	ret = egg_unique_assign (egg_unique, "org.mate.PowerManager.Preferences");
-	if (!ret) {
-		goto unique_out;
-	}
+	gdk_init (&argc, &argv);
+	app = gtk_application_new("org.mate.PowerManager.Preferences", 0);
 
 	prefs = gpm_prefs_new ();
 
-	g_signal_connect (egg_unique, "activated",
+	window = gpm_window (prefs);
+	g_signal_connect (app, "activate",
 			  G_CALLBACK (gpm_prefs_activated_cb), prefs);
 	g_signal_connect (prefs, "action-help",
 			  G_CALLBACK (gpm_prefs_help_cb), prefs);
-	g_signal_connect (prefs, "action-close",
-			  G_CALLBACK (gpm_prefs_close_cb), prefs);
-	gtk_main ();
+	g_signal_connect_swapped (prefs, "action-close",
+			  G_CALLBACK (gtk_widget_destroy), window);
+
+	status = g_application_run (G_APPLICATION (app), argc, argv);
 	g_object_unref (prefs);
 
-unique_out:
-	g_object_unref (egg_unique);
+	g_object_unref (app);
 
 /* seems to not work...
 	g_option_context_free (context); */
 
-	return 0;
+	return status;
 }

@@ -4,7 +4,6 @@ ACLOCAL_AMFLAGS = -I m4 ${ACLOCAL_FLAGS}
 SUBDIRS = 						\
 	src						\
 	po						\
-	docs						\
 	man						\
 	data						\
 	help						\
@@ -16,8 +15,6 @@ endif
 
 EXTRA_DIST =						\
 	autogen.sh					\
-	HACKING						\
-	NEWS.GNOME					\
 	intltool-extract.in				\
 	intltool-merge.in				\
 	intltool-update.in
@@ -34,9 +31,9 @@ DISTCLEANFILES =					\
 	intltool-update					\
 	mate-power-manager-*.tar.gz
 
-DISTCHECK_CONFIGURE_FLAGS = 				\
-	--disable-schemas-install			\
-	--disable-applets				\
+DISTCHECK_CONFIGURE_FLAGS =   \
+	--disable-schemas-install \
+	--disable-applets         \
 	--disable-tests
 
 # Build ChangeLog from GIT  history

@@ -13,9 +13,8 @@ EXTRA_DIST =						\
 AM_CPPFLAGS =						\
 	$(GLIB_CFLAGS)					\
 	$(DBUS_CFLAGS)					\
-	$(MATE_CFLAGS)					\
+	$(CAIRO_CFLAGS)					\
 	$(KEYRING_CFLAGS)				\
-	$(UNIQUE_CFLAGS)				\
 	$(X11_CFLAGS)					\
 	$(LIBNOTIFY_CFLAGS)				\
 	$(CANBERRA_CFLAGS)				\
@@ -38,8 +37,9 @@ AM_CPPFLAGS =						\
 	-DEGG_LOGGING="\"GPM_LOGGING\""			\
 	-DEGG_CONSOLE="\"GPM_CONSOLE\""			\
 	-I$(top_srcdir)					\
-	$(DISABLE_DEPRECATED)				\
-	$(NULL)
+	$(DISABLE_DEPRECATED)
+
+AM_CPPFLAGS += $(NULL)
 
 bin_PROGRAMS =						\
 	mate-power-manager				\
@@ -62,18 +62,12 @@ libgpmshared_a_SOURCES =				\
 	egg-color.h					\
 	egg-debug.h					\
 	egg-debug.c					\
-	egg-unique.h					\
-	egg-unique.c					\
 	egg-precision.h					\
 	egg-precision.c					\
 	egg-array-float.c				\
 	egg-array-float.h				\
 	egg-idletime.h					\
 	egg-idletime.c					\
-	egg-dbus-proxy.h				\
-	egg-dbus-proxy.c				\
-	egg-dbus-monitor.h				\
-	egg-dbus-monitor.c				\
 	egg-discrete.h					\
 	egg-discrete.c					\
 	egg-console-kit.h				\
@@ -85,8 +79,7 @@ libgpmshared_a_SOURCES =				\
 	gpm-marshal.h					\
 	gpm-marshal.c					\
 	gpm-upower.c					\
-	gpm-upower.h					\
-	$(NULL)
+	gpm-upower.h
 
 mate_power_backlight_helper_SOURCES =			\
 	gpm-backlight-helper.c				\
@@ -114,8 +107,7 @@ mate_power_statistics_LDADD =				\
 	$(GLIB_LIBS)					\
 	$(X11_LIBS)					\
 	$(UPOWER_LIBS)					\
-	$(MATE_LIBS)					\
-	$(UNIQUE_LIBS)					\
+	$(CAIRO_LIBS)					\
 	$(DBUS_LIBS)					\
 	-lm
 
@@ -133,9 +125,8 @@ mate_power_preferences_LDADD =				\
 	libgpmshared.a					\
 	$(GLIB_LIBS)					\
 	$(X11_LIBS)					\
-	$(MATE_LIBS)					\
+	$(CAIRO_LIBS)					\
 	$(DBUS_LIBS)					\
-	$(UNIQUE_LIBS)					\
 	$(GPM_EXTRA_LIBS)				\
 	$(UPOWER_LIBS)					\
 	-lm
@@ -186,7 +177,7 @@ mate_power_manager_LDADD =				\
 	$(GLIB_LIBS)					\
 	$(X11_LIBS)				\
 	$(GSTREAMER_LIBS)				\
-	$(MATE_LIBS)					\
+	$(CAIRO_LIBS)					\
 	$(KEYRING_LIBS)					\
 	$(DBUS_LIBS)					\
 	$(X11_LIBS)						\
@@ -209,10 +200,6 @@ mate_power_self_test_SOURCES =				\
 	egg-test.c					\
 	egg-debug.h					\
 	egg-debug.c					\
-	egg-dbus-monitor.h				\
-	egg-dbus-monitor.c				\
-	egg-dbus-proxy.h				\
-	egg-dbus-proxy.c				\
 	egg-precision.h					\
 	egg-precision.c					\
 	egg-idletime.h					\
@@ -254,7 +241,7 @@ mate_power_self_test_SOURCES =				\
 mate_power_self_test_LDADD =				\
 	$(GLIB_LIBS)					\
 	$(X11_LIBS)					\
-	$(MATE_LIBS)					\
+	$(CAIRO_LIBS)					\
 	$(KEYRING_LIBS)					\
 	$(GSTREAMER_LIBS)				\
 	$(UPOWER_LIBS)					\

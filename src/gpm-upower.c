@@ -203,10 +203,13 @@ gpm_upower_get_device_summary (UpDevice *device)
 		      "time-to-empty", &time_to_empty,
 		      NULL);
 
-	if (!is_present)
-		return NULL;
+	kind_desc = gpm_device_kind_to_localised_string (kind, 1);
 
-	kind_desc = gpm_device_kind_to_localised_text (kind, 1);
+	/* not installed */
+	if (!is_present) {
+		/* TRANSLATORS: device not present */
+		return g_strdup_printf (_("%s not present"), kind_desc);
+	}
 
 	/* don't display all the extra stuff for keyboards and mice */
 	if (kind == UP_DEVICE_KIND_MOUSE ||
@@ -297,11 +300,17 @@ gpm_upower_get_device_summary (UpDevice *device)
 		/* TRANSLATORS: this is only shown for laptops with multiple batteries */
 		description = g_strdup_printf (_("%s waiting to charge (%.1f%%)"), kind_desc, percentage);
 
+	} else if (state == UP_DEVICE_STATE_EMPTY) {
+
+		/* TRANSLATORS: when the device has no charge left */
+		description = g_strdup_printf (_("%s empty"), kind_desc);
+
 	} else {
 		egg_warning ("in an undefined state we are not charging or "
 			     "discharging and the batteries are also not charged");
 		description = g_strdup_printf ("%s (%.1f%%)", kind_desc, percentage);
 	}
+
 	return description;
 }
 
@@ -352,7 +361,7 @@ gpm_upower_get_device_description (UpDevice *device)
 		      NULL);
 
 	details = g_string_new ("");
-	text = gpm_device_kind_to_localised_text (kind, 1);
+	text = gpm_device_kind_to_localised_string (kind, 1);
 	/* TRANSLATORS: the type of data, e.g. Laptop battery */
 	g_string_append_printf (details, "<b>%s</b> %s\n", _("Product:"), text);
 
@@ -466,10 +475,10 @@ gpm_upower_get_device_description (UpDevice *device)
 }
 
 /**
- * gpm_device_kind_to_localised_text:
+ * gpm_device_kind_to_localised_string:
  **/
 const gchar *
-gpm_device_kind_to_localised_text (UpDeviceKind kind, guint number)
+gpm_device_kind_to_localised_string (UpDeviceKind kind, guint number)
 {
 	const gchar *text = NULL;
 	switch (kind) {

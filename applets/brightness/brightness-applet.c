@@ -22,11 +22,8 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#  include <config.h>
+#include <config.h>
 #endif
-
-/* FIXME: gdk_gc_* needs porting to cairo */
-#undef GDK_DISABLE_DEPRECATED
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -37,10 +34,8 @@
 #include <gdk/gdkkeysyms.h>
 #include <glib-object.h>
 #include <dbus/dbus-glib.h>
-#include <libmate-desktop/mate-aboutdialog.h>
 
 #include "egg-debug.h"
-#include "egg-dbus-monitor.h"
 #include "gpm-common.h"
 
 #define GPM_TYPE_BRIGHTNESS_APPLET		(gpm_brightness_applet_get_type ())
@@ -63,7 +58,7 @@ typedef struct{
 	/* connection to g-p-m */
 	DBusGProxy *proxy;
 	DBusGConnection *connection;
-	EggDbusMonitor *monitor;
+	guint bus_watch_id;
 	guint level;
 	/* a cache for panel size */
 	gint size;
@@ -76,8 +71,8 @@ typedef struct{
 GType                gpm_brightness_applet_get_type  (void);
 
 
-#define	GPM_DBUS_SERVICE		        "org.mate.PowerManager"
-#define	GPM_DBUS_PATH_BACKLIGHT		    "/org/mate/PowerManager/Backlight"
+#define	GPM_DBUS_SERVICE		"org.mate.PowerManager"
+#define	GPM_DBUS_PATH_BACKLIGHT		"/org/mate/PowerManager/Backlight"
 #define	GPM_DBUS_INTERFACE_BACKLIGHT	"org.mate.PowerManager.Backlight"
 
 static void      gpm_brightness_applet_class_init (GpmBrightnessAppletClass *klass);
@@ -90,11 +85,7 @@ static void      gpm_applet_check_size            (GpmBrightnessApplet *applet);
 static gboolean  gpm_applet_draw_cb               (GpmBrightnessApplet *applet);
 static void      gpm_applet_change_background_cb  (GpmBrightnessApplet *applet,
 						   MatePanelAppletBackgroundType arg1,
-#if GTK_CHECK_VERSION (3, 0, 0)
 						   cairo_pattern_t *arg2, gpointer data);
-#else
-						   GdkColor *arg2, GdkPixmap *arg3, gpointer data);
-#endif
 static void      gpm_applet_theme_change_cb (GtkIconTheme *icon_theme, gpointer data);
 static void      gpm_applet_stop_scroll_events_cb (GtkWidget *widget, GdkEvent  *event);
 static gboolean  gpm_applet_destroy_popup_cb      (GpmBrightnessApplet *applet);
@@ -268,16 +259,10 @@ static gboolean
 gpm_applet_draw_cb (GpmBrightnessApplet *applet)
 {
 	gint w, h, bg_type;
-#if GTK_CHECK_VERSION (3, 0, 0)
 	GdkRGBA color;
 	cairo_t *cr;
 	cairo_pattern_t *pattern;
 	GtkStyleContext *context;
-#else
-	GdkColor color;
-	GdkGC *gc;
-	GdkPixmap *background;
-#endif
 	GtkAllocation allocation;
 
 	if (gtk_widget_get_window (GTK_WIDGET(applet)) == NULL) {
@@ -300,74 +285,38 @@ gpm_applet_draw_cb (GpmBrightnessApplet *applet)
 	w = allocation.width;
 	h = allocation.height;
 
-#if GTK_CHECK_VERSION (3, 0, 0)
 	cr = gdk_cairo_create (gtk_widget_get_window (GTK_WIDGET(applet)));
-#else
-	gc = gdk_gc_new (gtk_widget_get_window (GTK_WIDGET(applet)));
-#endif
 
 	/* draw pixmap background */
-#if GTK_CHECK_VERSION (3, 0, 0)
 	bg_type = mate_panel_applet_get_background (MATE_PANEL_APPLET (applet), &color, &pattern);
-#else
-	bg_type = mate_panel_applet_get_background (MATE_PANEL_APPLET (applet), &color, &background);
-#endif
 	if (bg_type == PANEL_PIXMAP_BACKGROUND && !applet->popped) {
 		/* fill with given background pixmap */
-#if GTK_CHECK_VERSION (3, 0, 0)
 		cairo_set_source (cr, pattern);
 		cairo_rectangle (cr, 0, 0, w, h);
 		cairo_fill (cr);
-#else
-		gdk_draw_drawable (gtk_widget_get_window (GTK_WIDGET(applet)), gc, background, 0, 0, 0, 0, w, h);
-#endif
 	}
 	
 	/* draw color background */
 	if (bg_type == PANEL_COLOR_BACKGROUND && !applet->popped) {
-#if GTK_CHECK_VERSION (3, 0, 0)
 		gdk_cairo_set_source_rgba (cr, &color);
 		cairo_rectangle (cr, 0, 0, w, h);
 		cairo_fill (cr);
-#else
-		gdk_gc_set_rgb_fg_color (gc,&color);
-		gdk_gc_set_fill (gc,GDK_SOLID);
-		gdk_draw_rectangle (gtk_widget_get_window (GTK_WIDGET(applet)), gc, TRUE, 0, 0, w, h);
-#endif
 	}
 
 	/* fill with selected color if popped */
 	if (applet->popped) {
-#if GTK_CHECK_VERSION (3, 0, 0)
 		context = gtk_widget_get_style_context (GTK_WIDGET(applet));
 		gtk_style_context_get_color (context, GTK_STATE_FLAG_SELECTED, &color);
 		gdk_cairo_set_source_rgba (cr, &color);
 		cairo_rectangle (cr, 0, 0, w, h);
 		cairo_fill (cr);
-#else
-		color = gtk_rc_get_style (GTK_WIDGET(applet))->bg[GTK_STATE_SELECTED];
-		gdk_gc_set_rgb_fg_color (gc,&color);
-		gdk_gc_set_fill (gc,GDK_SOLID);
-		gdk_draw_rectangle (gtk_widget_get_window (GTK_WIDGET(applet)), gc, TRUE, 0, 0, w, h);
-#endif
 	}
 
 	/* draw icon at center */
-#if GTK_CHECK_VERSION (3, 0, 0)
 	gdk_cairo_set_source_pixbuf (cr, applet->icon, (w - applet->icon_width)/2, (h - applet->icon_height)/2);
 	cairo_paint (cr);
-#else
-	gdk_draw_pixbuf (gtk_widget_get_window (GTK_WIDGET(applet)), gc, applet->icon,
-			 0, 0, (w - applet->icon_width)/2, (h - applet->icon_height)/2,
-			 applet->icon_width, applet->icon_height,
-			 GDK_RGB_DITHER_NONE, 0, 0);
-#endif
 
-#if GTK_CHECK_VERSION (3, 0, 0)
 	cairo_destroy (cr);
-#else
-	g_object_unref (gc);
-#endif
 
 	return TRUE;
 }
@@ -380,11 +329,7 @@ gpm_applet_draw_cb (GpmBrightnessApplet *applet)
 static void
 gpm_applet_change_background_cb (GpmBrightnessApplet *applet,
 				 MatePanelAppletBackgroundType arg1,
-#if GTK_CHECK_VERSION (3, 0, 0)
 				 cairo_pattern_t *arg2, gpointer data)
-#else
-				 GdkColor *arg2, GdkPixmap *arg3, gpointer data)
-#endif
 {
 	gtk_widget_queue_draw (GTK_WIDGET (applet));
 }
@@ -532,11 +477,7 @@ gpm_applet_key_press_cb (GpmBrightnessApplet *applet, GdkEventKey *event)
 			gdk_keyboard_ungrab (GDK_CURRENT_TIME);
 			gdk_pointer_ungrab (GDK_CURRENT_TIME);
 			gtk_grab_remove (GTK_WIDGET(applet));
-#if GTK_CHECK_VERSION (3, 0, 0)
 			gtk_widget_set_state_flags (GTK_WIDGET(applet), GTK_STATE_FLAG_NORMAL, TRUE);
-#else
-			gtk_widget_set_state (GTK_WIDGET(applet), GTK_STATE_NORMAL);
-#endif
 			gtk_widget_hide (applet->popup);
 			applet->popped = FALSE;
 			gpm_applet_draw_cb (applet);
@@ -607,7 +548,6 @@ gpm_applet_scroll_cb (GpmBrightnessApplet *applet, GdkEventScroll *event)
 	return FALSE;
 }
 
-#if GTK_CHECK_VERSION (3, 0, 0)
 /**
  * on_popup_button_press:
  * @applet: Brightness applet instance
@@ -636,7 +576,6 @@ on_popup_button_press (GtkWidget      *widget,
 
         return FALSE;
 }
-#endif
 
 /**
  * gpm_applet_create_popup:
@@ -654,18 +593,10 @@ gpm_applet_create_popup (GpmBrightnessApplet *applet)
 
 	/* slider */
 	if (MATE_PANEL_APPLET_VERTICAL(orientation)) {
-#if GTK_CHECK_VERSION (3, 0, 0)
 		applet->slider = gtk_scale_new_with_range (GTK_ORIENTATION_HORIZONTAL, 0, 100, 1);
-#else
-		applet->slider = gtk_hscale_new_with_range (0, 100, 1);
-#endif
 		gtk_widget_set_size_request (applet->slider, 100, -1);
 	} else {
-#if GTK_CHECK_VERSION (3, 0, 0)
 		applet->slider = gtk_scale_new_with_range (GTK_ORIENTATION_VERTICAL, 0, 100, 1);
-#else
-		applet->slider = gtk_vscale_new_with_range (0, 100, 1);
-#endif
 		gtk_widget_set_size_request (applet->slider, -1, 100);
 	}
 	gtk_range_set_inverted (GTK_RANGE(applet->slider), TRUE);
@@ -687,17 +618,9 @@ gpm_applet_create_popup (GpmBrightnessApplet *applet)
 
 	/* box */
 	if (MATE_PANEL_APPLET_VERTICAL(orientation)) {
-#if GTK_CHECK_VERSION (3, 0, 0)
 		box = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 1);
-#else
-		box = gtk_hbox_new (FALSE, 1);
-#endif
 	} else {
-#if GTK_CHECK_VERSION (3, 0, 0)
 		box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 1);
-#else
-		box = gtk_vbox_new (FALSE, 1);
-#endif
 	}
 	gtk_box_pack_start (GTK_BOX(box), applet->btn_plus, FALSE, FALSE, 0);
 	gtk_box_pack_start (GTK_BOX(box), applet->slider, TRUE, TRUE, 0);
@@ -710,25 +633,16 @@ gpm_applet_create_popup (GpmBrightnessApplet *applet)
 
 	/* window */
 	applet->popup = gtk_window_new (GTK_WINDOW_POPUP);
-#if !GTK_CHECK_VERSION (3, 0, 0)
-	GTK_WIDGET_UNSET_FLAGS (applet->popup, GTK_TOPLEVEL);
-#endif
 	gtk_window_set_type_hint (GTK_WINDOW(applet->popup), GDK_WINDOW_TYPE_HINT_UTILITY);
-#if !GTK_CHECK_VERSION (3, 0, 0)
-	gtk_widget_set_parent (applet->popup, GTK_WIDGET(applet));
-#endif
 	gtk_container_add (GTK_CONTAINER(applet->popup), frame);
 
-#if GTK_CHECK_VERSION (3, 0, 0)
         /* window events */
         g_signal_connect (G_OBJECT(applet->popup), "button-press-event",
                           G_CALLBACK (on_popup_button_press), applet);
 
         g_signal_connect (G_OBJECT(applet->popup), "key-press-event",
                           G_CALLBACK(gpm_applet_key_press_cb), applet);
-#endif
 
-#if GTK_CHECK_VERSION (3, 0, 0)
 	/* Set volume control frame, slider and toplevel window to follow panel volume control theme */
 	GtkWidget *toplevel = gtk_widget_get_toplevel (frame);
 	GtkStyleContext *context;
@@ -738,7 +652,6 @@ gpm_applet_create_popup (GpmBrightnessApplet *applet)
  	GdkScreen *screen = gtk_widget_get_screen(GTK_WIDGET(toplevel));
 	GdkVisual *visual = gdk_screen_get_rgba_visual(screen);
 	gtk_widget_set_visual(GTK_WIDGET(toplevel), visual);
-#endif
 }
 
 /**
@@ -752,13 +665,11 @@ gpm_applet_popup_cb (GpmBrightnessApplet *applet, GdkEventButton *event)
 {
 	GtkAllocation allocation, popup_allocation;
 	gint orientation, x, y;
-#if GTK_CHECK_VERSION (3, 0, 0)
 	GdkWindow *window;
 	GdkDisplay *display;
 	GdkDeviceManager *device_manager;
 	GdkDevice *pointer;
 	GdkDevice *keyboard;
-#endif
 
 	/* react only to left mouse button */
 	if (event->button != 1) {
@@ -767,36 +678,19 @@ gpm_applet_popup_cb (GpmBrightnessApplet *applet, GdkEventButton *event)
 
 	/* if yet popped, release focus and hide then redraw applet unselected */
 	if (applet->popped) {
-#if !GTK_CHECK_VERSION (3, 0, 0)
-		gdk_keyboard_ungrab (GDK_CURRENT_TIME);
-		gdk_pointer_ungrab (GDK_CURRENT_TIME);
-		gtk_grab_remove (GTK_WIDGET(applet));
-		gtk_widget_set_state (GTK_WIDGET(applet), GTK_STATE_NORMAL);
-#endif
 		gtk_widget_hide (applet->popup);
 		applet->popped = FALSE;
-#if !GTK_CHECK_VERSION (3, 0, 0)
-		gpm_applet_draw_cb (applet);
-#endif
 		gpm_applet_update_tooltip (applet);
 		return TRUE;
 	}
 
-#if GTK_CHECK_VERSION (3, 0, 0)
 	/* don't show the popup if brightness is unavailable */
 	if (applet->level == -1) {
 		return FALSE;
 	}
-#else
-	/* update UI for current brightness */
-	gpm_applet_update_popup_level (applet);
-#endif
 
 	/* otherwise pop */
 	applet->popped = TRUE;
-#if !GTK_CHECK_VERSION (3, 0, 0)
-	gpm_applet_draw_cb (applet);
-#endif
 
 	/* create a new popup (initial or if panel parameters changed) */
 	if (applet->popup == NULL) {
@@ -844,7 +738,6 @@ gpm_applet_popup_cb (GpmBrightnessApplet *applet, GdkEventButton *event)
 	gtk_window_move (GTK_WINDOW (applet->popup), x, y);
 
 	/* grab input */
-#if GTK_CHECK_VERSION (3, 0, 0)
 	window = gtk_widget_get_window (GTK_WIDGET (applet->popup));
 	display = gdk_window_get_display (window);
 	device_manager = gdk_display_get_device_manager (display);
@@ -858,18 +751,6 @@ gpm_applet_popup_cb (GpmBrightnessApplet *applet, GdkEventButton *event)
 			 GDK_OWNERSHIP_NONE, TRUE,
 			 GDK_KEY_PRESS_MASK | GDK_KEY_RELEASE_MASK,
 			 NULL, GDK_CURRENT_TIME);
-#else
-	gtk_widget_grab_focus (GTK_WIDGET(applet));
-	gtk_grab_add (GTK_WIDGET(applet));
-	gdk_pointer_grab (gtk_widget_get_window (GTK_WIDGET(applet)), TRUE,
-			  GDK_BUTTON_PRESS_MASK |
-			  GDK_BUTTON_RELEASE_MASK |
-			  GDK_POINTER_MOTION_MASK,
-			  NULL, NULL, GDK_CURRENT_TIME);
-	gdk_keyboard_grab (gtk_widget_get_window (GTK_WIDGET(applet)),
-			   TRUE, GDK_CURRENT_TIME);
-	gtk_widget_set_state (GTK_WIDGET(applet), GTK_STATE_SELECTED);
-#endif
 
 	return TRUE;
 }
@@ -906,7 +787,7 @@ gpm_applet_stop_scroll_events_cb (GtkWidget *widget, GdkEvent  *event)
 static void
 gpm_applet_dialog_about_cb (GtkAction *action, gpointer data)
 {
-	MateAboutDialog *about;
+	GtkAboutDialog *about;
 
 	GdkPixbuf *logo =
 		gtk_icon_theme_load_icon (gtk_icon_theme_get_default (),
@@ -918,6 +799,11 @@ gpm_applet_dialog_about_cb (GtkAction *action, gpointer data)
 		"Richard Hughes <richard@hughsie.com>",
 		NULL
 	};
+
+	char copyright[] = \
+		"Copyright \xc2\xa9 2012-2016 MATE developers\n"
+		"Copyright \xc2\xa9 2006 Benjamin Canou";
+
 	const char *documenters [] = {
 		NULL
 	};
@@ -942,17 +828,17 @@ gpm_applet_dialog_about_cb (GtkAction *action, gpointer data)
 	license_trans = g_strconcat (_(license[0]), "\n\n", _(license[1]), "\n\n",
 				     _(license[2]), "\n\n", _(license[3]), "\n", NULL);
 
-	about = (MateAboutDialog*) mate_about_dialog_new ();
-	mate_about_dialog_set_program_name (about, GPM_BRIGHTNESS_APPLET_NAME);
-	mate_about_dialog_set_version (about, VERSION);
-	mate_about_dialog_set_copyright (about, _("Copyright \xc2\xa9 2006 Benjamin Canou"));
-	mate_about_dialog_set_comments (about, GPM_BRIGHTNESS_APPLET_DESC);
-	mate_about_dialog_set_authors (about, authors);
-	mate_about_dialog_set_documenters (about, documenters);
-	mate_about_dialog_set_translator_credits (about, translator_credits);
-	mate_about_dialog_set_logo (about, logo);
-	mate_about_dialog_set_license (about, license_trans);
-	mate_about_dialog_set_website (about, "http://www.mate-desktop.org/");
+	about = (GtkAboutDialog*) gtk_about_dialog_new ();
+	gtk_about_dialog_set_program_name (about, GPM_BRIGHTNESS_APPLET_NAME);
+	gtk_about_dialog_set_version (about, VERSION);
+	gtk_about_dialog_set_copyright (about, copyright);
+	gtk_about_dialog_set_comments (about, GPM_BRIGHTNESS_APPLET_DESC);
+	gtk_about_dialog_set_authors (about, authors);
+	gtk_about_dialog_set_documenters (about, documenters);
+	gtk_about_dialog_set_translator_credits (about, translator_credits);
+	gtk_about_dialog_set_logo (about, logo);
+	gtk_about_dialog_set_license (about, license_trans);
+	gtk_about_dialog_set_website (about, "http://www.mate-desktop.org/");
 
 	g_signal_connect (G_OBJECT(about), "response",
 			  G_CALLBACK(gtk_widget_destroy), NULL);
@@ -983,12 +869,9 @@ gpm_applet_destroy_cb (GtkWidget *widget)
 {
 	GpmBrightnessApplet *applet = GPM_BRIGHTNESS_APPLET(widget);
 
-	if (applet->monitor != NULL) {
-		g_object_unref (applet->monitor);
-	}
-	if (applet->icon != NULL) {
+	g_bus_unwatch_name (applet->bus_watch_id);
+	if (applet->icon != NULL)
 		g_object_unref (applet->icon);
-	}
 }
 
 /**
@@ -1069,25 +952,30 @@ gpm_brightness_applet_dbus_disconnect (GpmBrightnessApplet *applet)
 }
 
 /**
- * monitor_connection_cb:
- * @proxy: The dbus raw proxy
- * @status: The status of the service, where TRUE is connected
- * @screensaver: This class instance
+ * gpm_brightness_applet_name_appeared_cb:
  **/
 static void
-monitor_connection_cb (EggDbusMonitor           *monitor,
-		     gboolean	          status,
-		     GpmBrightnessApplet *applet)
+gpm_brightness_applet_name_appeared_cb (GDBusConnection *connection,
+					const gchar *name,
+					const gchar *name_owner,
+					GpmBrightnessApplet *applet)
 {
-	if (status) {
-		gpm_brightness_applet_dbus_connect (applet);
-		gpm_applet_update_tooltip (applet);
-		gpm_applet_draw_cb (applet);
-	} else {
-		gpm_brightness_applet_dbus_disconnect (applet);
-		gpm_applet_update_tooltip (applet);
-		gpm_applet_draw_cb (applet);
-	}
+	gpm_brightness_applet_dbus_connect (applet);
+	gpm_applet_update_tooltip (applet);
+	gpm_applet_draw_cb (applet);
+}
+
+/**
+ * gpm_brightness_applet_name_vanished_cb:
+ **/
+void
+gpm_brightness_applet_name_vanished_cb (GDBusConnection *connection,
+					 const gchar *name,
+					 GpmBrightnessApplet *applet)
+{
+	gpm_brightness_applet_dbus_disconnect (applet);
+	gpm_applet_update_tooltip (applet);
+	gpm_applet_draw_cb (applet);
 }
 
 /**
@@ -1113,12 +1001,14 @@ gpm_brightness_applet_init (GpmBrightnessApplet *applet)
                                            GPM_DATA G_DIR_SEPARATOR_S "icons");
 
 
-	applet->monitor = egg_dbus_monitor_new ();
-	g_signal_connect (applet->monitor, "connection-changed",
-			  G_CALLBACK (monitor_connection_cb), applet);
-	connection = dbus_g_bus_get (DBUS_BUS_SESSION, NULL);
-	egg_dbus_monitor_assign (applet->monitor, connection, GPM_DBUS_SERVICE);
-	gpm_brightness_applet_dbus_connect (applet);
+	/* monitor the daemon */
+	applet->bus_watch_id =
+		g_bus_watch_name (G_BUS_TYPE_SESSION,
+				  GPM_DBUS_SERVICE,
+				  G_BUS_NAME_WATCHER_FLAGS_NONE,
+				  (GBusNameAppearedCallback) gpm_brightness_applet_name_appeared_cb,
+				  (GBusNameVanishedCallback) gpm_brightness_applet_name_vanished_cb,
+				  applet, NULL);
 
 	/* coldplug */
 	applet->call_worked = gpm_applet_get_brightness (applet);
@@ -1146,13 +1036,8 @@ gpm_brightness_applet_init (GpmBrightnessApplet *applet)
 	/* We use g_signal_connect_after because letting the panel draw
 	 * the background is the only way to have the correct
 	 * background when a theme defines a background picture. */
-#if GTK_CHECK_VERSION (3, 0, 0)
 	g_signal_connect_after (G_OBJECT(applet), "draw",
 				G_CALLBACK(gpm_applet_draw_cb), NULL);
-#else
-	g_signal_connect_after (G_OBJECT(applet), "expose-event",
-				G_CALLBACK(gpm_applet_draw_cb), NULL);
-#endif
 
 	g_signal_connect (G_OBJECT(applet), "change-background",
 			  G_CALLBACK(gpm_applet_change_background_cb), NULL);

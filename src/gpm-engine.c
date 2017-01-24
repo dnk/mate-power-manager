@@ -72,6 +72,7 @@ enum {
 	CHARGE_ACTION,
 	DISCHARGING,
 	LOW_CAPACITY,
+	DEVICES_CHANGED,
 	LAST_SIGNAL
 };
 
@@ -536,6 +537,8 @@ gpm_engine_recalculate_state (GpmEngine *engine)
 
 	gpm_engine_recalculate_state_icon (engine);
 	gpm_engine_recalculate_state_summary (engine);
+
+	g_signal_emit (engine, signals [DEVICES_CHANGED], 0);
 }
 
 /**
@@ -608,7 +611,13 @@ gpm_engine_get_composite_device (GpmEngine *engine, UpDevice *original_device)
 	GPtrArray *array;
 	UpDevice *device;
 	UpDeviceKind kind;
+	UpDeviceKind original_kind;
 	guint i;
+
+	/* get the type of the original device */
+	g_object_get (original_device,
+		      "kind", &original_kind,
+		      NULL);
 
 	/* find out how many batteries in the system */
 	array = engine->priv->array;
@@ -617,7 +626,7 @@ gpm_engine_get_composite_device (GpmEngine *engine, UpDevice *original_device)
 		g_object_get (device,
 			      "kind", &kind,
 			      NULL);
-		if (kind == UP_DEVICE_KIND_BATTERY)
+		if (kind == original_kind)
 			battery_devices++;
 	}
 
@@ -672,11 +681,17 @@ gpm_engine_update_composite_device (GpmEngine *engine, UpDevice *original_device
 	UpDevice *device;
 	UpDeviceState state;
 	UpDeviceKind kind;
+	UpDeviceKind original_kind;
 	gboolean debug;
 	gchar *text;
 
 	/* are we printing to console? */
 	debug = egg_debug_enabled ();
+
+	/* get the type of the original device */
+	g_object_get (original_device,
+		      "kind", &original_kind,
+		      NULL);
 
 	/* update the composite device */
 	array = engine->priv->array;
@@ -689,7 +704,7 @@ gpm_engine_update_composite_device (GpmEngine *engine, UpDevice *original_device
 			      "energy-full", &energy_full,
 			      "energy-rate", &energy_rate,
 			      NULL);
-		if (kind != UP_DEVICE_KIND_BATTERY)
+		if (kind != original_kind)
 			continue;
 
 		if (debug) {
@@ -997,6 +1012,50 @@ gpm_engine_get_devices (GpmEngine *engine)
 }
 
 /**
+ * gpm_engine_get_primary_device:
+ *
+ * Return value: the #UpDevice, free with g_object_unref()
+ **/
+UpDevice *
+gpm_engine_get_primary_device (GpmEngine *engine)
+{
+	guint i;
+	UpDevice *device = NULL;
+	UpDevice *device_tmp;
+	UpDeviceKind kind;
+	UpDeviceState state;
+	gboolean is_present;
+
+	for (i=0; i<engine->priv->array->len; i++) {
+		device_tmp = g_ptr_array_index (engine->priv->array, i);
+
+		/* get device properties */
+		g_object_get (device_tmp,
+			      "kind", &kind,
+			      "state", &state,
+			      "is-present", &is_present,
+			      NULL);
+
+		/* not present */
+		if (!is_present)
+			continue;
+
+		/* not discharging */
+		if (state != UP_DEVICE_STATE_DISCHARGING)
+			continue;
+
+		/* not battery */
+		if (kind != UP_DEVICE_KIND_BATTERY)
+			continue;
+
+		/* use composite device to cope with multiple batteries */
+		device = g_object_ref (gpm_engine_get_composite_device (engine, device_tmp));
+		break;
+	}
+	return device;
+}
+
+/**
  * phone_device_added_cb:
  **/
 static void
@@ -1096,6 +1155,11 @@ phone_device_refresh_cb (GpmPhone *phone, guint idx, GpmEngine *engine)
 static void
 gpm_engine_init (GpmEngine *engine)
 {
+#if UP_CHECK_VERSION(0, 99, 0)
+	GPtrArray *array = NULL;
+	guint i;
+#endif
+	guint idle_id;
 	engine->priv = GPM_ENGINE_GET_PRIVATE (engine);
 
 	engine->priv->array = g_ptr_array_new_with_free_func (g_object_unref);
@@ -1160,7 +1224,8 @@ gpm_engine_init (GpmEngine *engine)
 	else
 		egg_debug ("Using percentage notification policy");
 
-	g_idle_add ((GSourceFunc) gpm_engine_coldplug_idle_cb, engine);
+	idle_id = g_idle_add ((GSourceFunc) gpm_engine_coldplug_idle_cb, engine);
+	g_source_set_name_by_id (idle_id, "[GpmEngine] coldplug");
 }
 
 /**
@@ -1230,6 +1295,13 @@ gpm_engine_class_init (GpmEngineClass *klass)
 			      G_STRUCT_OFFSET (GpmEngineClass, charge_critical),
 			      NULL, NULL, g_cclosure_marshal_VOID__POINTER,
 			      G_TYPE_NONE, 1, G_TYPE_POINTER);
+	signals [DEVICES_CHANGED] =
+		g_signal_new ("devices-changed",
+			      G_TYPE_FROM_CLASS (object_class),
+			      G_SIGNAL_RUN_LAST,
+			      G_STRUCT_OFFSET (GpmEngineClass, devices_changed),
+			      NULL, NULL, g_cclosure_marshal_VOID__VOID,
+			      G_TYPE_NONE, 0);
 }
 
 /**

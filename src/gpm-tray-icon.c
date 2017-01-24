@@ -39,7 +39,6 @@
 #include <glib/gi18n.h>
 #include <gtk/gtk.h>
 #include <libupower-glib/upower.h>
-#include <libmate-desktop/mate-aboutdialog.h>
 
 #include "egg-debug.h"
 
@@ -183,35 +182,20 @@ gpm_tray_icon_show_about_cb (GtkMenuItem *item, gpointer data)
 		NULL
 	};
 
-	mate_show_about_dialog (NULL,
-							"program-name", _("Power Manager"),
-							"version", VERSION,
-							"comments", _("Power management daemon"),
-							"copyright", _("Copyright \xC2\xA9 2011-2014 MATE developers"),
-							"authors", authors,
-							/* Translators should localize the following string
-							* which will be displayed at the bottom of the about
-							* box to give credit to the translator(s).
-							*/
-							"translator-credits", _("translator-credits"),
-							"logo-icon-name", "mate-power-manager",
-							"website", "http://www.mate-desktop.org",
-							NULL);
-}
-
-/**
- * gpm_tray_icon_popup_cleared_cd:
- * @widget: The popup Gtkwidget
- *
- * We have to re-enable the tooltip when the popup is removed
- **/
-static void
-gpm_tray_icon_popup_cleared_cd (GtkWidget *widget, GpmTrayIcon *icon)
-{
-	g_return_if_fail (GPM_IS_TRAY_ICON (icon));
-	egg_debug ("clear tray");
-	g_object_ref_sink (widget);
-	g_object_unref (widget);
+	gtk_show_about_dialog (NULL,
+				"program-name", _("Power Manager"),
+				"version", VERSION,
+				"comments", _("Power management daemon"),
+				"copyright", _("Copyright \xC2\xA9 2011-2016 MATE developers"),
+				"authors", authors,
+				/* Translators should localize the following string
+				* which will be displayed at the bottom of the about
+				* box to give credit to the translator(s).
+				*/
+				"translator-credits", _("translator-credits"),
+				"logo-icon-name", "mate-power-manager",
+				"website", "http://www.mate-desktop.org",
+				NULL);
 }
 
 /**
@@ -267,7 +251,7 @@ gpm_tray_icon_add_device (GpmTrayIcon *icon, GtkMenu *menu, const GPtrArray *arr
 			label = g_strdup_printf ("%s %s (%.1f%%)", vendor, model, percentage);
 		}
 		else {
-			label = g_strdup_printf ("%s (%.1f%%)", gpm_device_kind_to_localised_text (kind, 1), percentage);
+			label = g_strdup_printf ("%s (%.1f%%)", gpm_device_kind_to_localised_string (kind, 1), percentage);
 		}
 		item = gtk_image_menu_item_new_with_label (label);
 
@@ -291,18 +275,54 @@ gpm_tray_icon_add_device (GpmTrayIcon *icon, GtkMenu *menu, const GPtrArray *arr
 }
 
 /**
- * gpm_tray_icon_create_menu:
- *
- * Display the popup menu.
+ * gpm_tray_icon_add_primary_device:
  **/
 static void
-gpm_tray_icon_create_menu (GpmTrayIcon *icon, guint32 timestamp)
+gpm_tray_icon_add_primary_device (GpmTrayIcon *icon, GtkMenu *menu, UpDevice *device)
+{
+	GtkWidget *item;
+	gchar *time_str;
+	gchar *string;
+	gint64 time_to_empty = 0;
+
+	/* get details */
+	g_object_get (device,
+		      "time-to-empty", &time_to_empty,
+		      NULL);
+
+	/* convert time to string */
+	time_str = gpm_get_timestring (time_to_empty);
+
+	/* TRANSLATORS: % is a timestring, e.g. "6 hours 10 minutes" */
+	string = g_strdup_printf (_("%s remaining"), time_str);
+	item = gtk_image_menu_item_new_with_label (string);
+	gtk_menu_shell_append (GTK_MENU_SHELL (menu), item);
+	g_free (time_str);
+	g_free (string);
+}
+
+/**
+ * gpm_tray_icon_create_menu:
+ *
+ * Create the popup menu.
+ **/
+static GtkMenu *
+gpm_tray_icon_create_menu (GpmTrayIcon *icon)
 {
 	GtkMenu *menu = (GtkMenu*) gtk_menu_new ();
 	GtkWidget *item;
 	GtkWidget *image;
 	guint dev_cnt = 0;
 	GPtrArray *array;
+	UpDevice *device = NULL;
+
+	/* show the primary device time remaining */
+	device = gpm_engine_get_primary_device (icon->priv->engine);
+	if (device != NULL) {
+		gpm_tray_icon_add_primary_device (icon, menu, device);
+		item = gtk_separator_menu_item_new ();
+		gtk_menu_shell_append (GTK_MENU_SHELL (menu), item);
+	}
 
 	/* add all device types to the drop down menu */
 	array = gpm_engine_get_devices (icon->priv->engine);
@@ -335,7 +355,6 @@ gpm_tray_icon_create_menu (GpmTrayIcon *icon, guint32 timestamp)
 			  G_CALLBACK (gpm_tray_icon_show_preferences_cb), icon);
 	gtk_menu_shell_append (GTK_MENU_SHELL (menu), item);
 	
-#if GTK_CHECK_VERSION (3, 0, 0)
 	/*Set up custom panel menu theme support-gtk3 only */
 	GtkWidget *toplevel = gtk_widget_get_toplevel (GTK_WIDGET (menu));
 	/* Fix any failures of compiz/other wm's to communicate with gtk for transparency in menu theme */
@@ -347,7 +366,6 @@ gpm_tray_icon_create_menu (GpmTrayIcon *icon, guint32 timestamp)
 	context = gtk_widget_get_style_context (GTK_WIDGET(toplevel));
 	gtk_style_context_add_class(context,"gnome-panel-menu-bar");
 	gtk_style_context_add_class(context,"mate-panel-menu-bar");
-#endif
 
 	/* about */
 	item = gtk_image_menu_item_new_from_stock (GTK_STOCK_ABOUT, NULL);
@@ -356,6 +374,38 @@ gpm_tray_icon_create_menu (GpmTrayIcon *icon, guint32 timestamp)
 	gtk_menu_shell_append (GTK_MENU_SHELL (menu), item);
 
 skip_prefs:
+	if (device != NULL)
+		g_object_unref (device);
+	return menu;
+}
+
+/**
+ * gpm_tray_icon_popup_cleared_cd:
+ * @widget: The popup Gtkwidget
+ *
+ * We have to re-enable the tooltip when the popup is removed
+ **/
+static void
+gpm_tray_icon_popup_cleared_cd (GtkWidget *widget, GpmTrayIcon *icon)
+{
+	g_return_if_fail (GPM_IS_TRAY_ICON (icon));
+	egg_debug ("clear tray");
+	g_object_ref_sink (widget);
+	g_object_unref (widget);
+}
+
+/**
+ * gpm_tray_icon_popup_menu:
+ *
+ * Display the popup menu.
+ **/
+static void
+gpm_tray_icon_popup_menu (GpmTrayIcon *icon, guint32 timestamp)
+{
+	GtkMenu *menu;
+
+	menu = gpm_tray_icon_create_menu (icon);
+
 	/* show the menu */
 	gtk_widget_show_all (GTK_WIDGET (menu));
 	gtk_menu_popup (GTK_MENU (menu), NULL, NULL,
@@ -375,7 +425,7 @@ static void
 gpm_tray_icon_popup_menu_cb (GtkStatusIcon *status_icon, guint button, guint32 timestamp, GpmTrayIcon *icon)
 {
 	egg_debug ("icon right clicked");
-	gpm_tray_icon_create_menu (icon, timestamp);
+	gpm_tray_icon_popup_menu (icon, timestamp);
 }
 
 
@@ -389,7 +439,7 @@ static void
 gpm_tray_icon_activate_cb (GtkStatusIcon *status_icon, GpmTrayIcon *icon)
 {
 	egg_debug ("icon left clicked");
-	gpm_tray_icon_create_menu (icon, gtk_get_current_event_time());
+	gpm_tray_icon_popup_menu (icon, gtk_get_current_event_time());
 }
 
 /**

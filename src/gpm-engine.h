@@ -61,6 +61,7 @@ typedef struct
 						 UpDevice	*device);
 	void		(* discharging)		(GpmEngine	*engine,
 						 UpDevice	*device);
+	void		(* devices_changed)	(GpmEngine	*engine);
 } GpmEngineClass;
 
 GType		 gpm_engine_get_type		(void);
@@ -68,6 +69,7 @@ GpmEngine	*gpm_engine_new			(void);
 gchar		*gpm_engine_get_icon		(GpmEngine	*engine);
 gchar		*gpm_engine_get_summary		(GpmEngine	*engine);
 GPtrArray	*gpm_engine_get_devices		(GpmEngine	*engine);
+UpDevice	*gpm_engine_get_primary_device	(GpmEngine	*engine);
 
 G_END_DECLS
 

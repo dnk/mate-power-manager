@@ -33,7 +33,6 @@
 #include "egg-debug.h"
 #include "egg-color.h"
 #include "egg-array-float.h"
-#include "egg-unique.h"
 
 #include "gpm-common.h"
 #include "gpm-icon-names.h"
@@ -403,7 +402,7 @@ gpm_stats_update_info_page_details (UpDevice *device)
 	gpm_stats_add_info_data (_("Device"), device_path);
 	g_free (device_path);
 
-	gpm_stats_add_info_data (_("Type"), gpm_device_kind_to_localised_text (kind, 1));
+	gpm_stats_add_info_data (_("Type"), gpm_device_kind_to_localised_string (kind, 1));
 	if (vendor != NULL && vendor[0] != '\0')
 		gpm_stats_add_info_data (_("Vendor"), vendor);
 	if (model != NULL && model[0] != '\0')
@@ -1129,6 +1128,10 @@ static void
 gpm_stats_button_update_ui (void)
 {
 	UpDevice *device;
+
+	if (current_device == NULL)
+		return;
+
 	device = up_device_new ();
 	up_device_set_object_path_sync (device, current_device, NULL, NULL);
 	gpm_stats_update_info_data (device);
@@ -1175,10 +1178,11 @@ gpm_stats_devices_treeview_clicked_cb (GtkTreeSelection *selection, gboolean dat
  * gpm_stats_window_activated_cb
  **/
 static void
-gpm_stats_window_activated_cb (EggUnique *egg_unique, gpointer data)
+gpm_stats_window_activated_cb (GtkApplication *app, gpointer data)
 {
 	GtkWidget *widget;
 	widget = GTK_WIDGET (gtk_builder_get_object (builder, "dialog_stats"));
+	gtk_application_add_window (GTK_APPLICATION (app), GTK_WINDOW (widget));
 	gtk_window_present (GTK_WINDOW (widget));
 }
 
@@ -1238,7 +1242,7 @@ gpm_stats_add_device (UpDevice *device)
 		label = g_strdup_printf ("%s %s", vendor, model);
 	}
 	else {
-		label = g_strdup_printf ("%s", gpm_device_kind_to_localised_text (kind, 1));
+		label = g_strdup_printf ("%s", gpm_device_kind_to_localised_string (kind, 1));
 	}
 	icon = gpm_upower_get_device_icon (device);
 
@@ -1560,9 +1564,10 @@ main (int argc, char *argv[])
 	gboolean verbose = FALSE;
 	GOptionContext *context;
 	GtkBox *box;
-	GtkWidget *widget;
+	GtkWidget *widget, *window;
 	GtkTreeSelection *selection;
-	EggUnique *egg_unique;
+	GtkApplication *app;
+	gint status;
 	gboolean ret;
 	UpClient *client;
 	GPtrArray *devices = NULL;
@@ -1602,12 +1607,9 @@ main (int argc, char *argv[])
 	egg_debug_init (verbose);
 	gtk_init (&argc, &argv);
 
-	/* are we already activated? */
-	egg_unique = egg_unique_new ();
-	ret = egg_unique_assign (egg_unique, "org.mate.PowerManager.Statistics");
-	if (!ret)
-		goto unique_out;
-	g_signal_connect (egg_unique, "activated",
+	app = gtk_application_new ("org.mate.PowerManager.Statistics", 0);
+
+	g_signal_connect (app, "activate",
 			  G_CALLBACK (gpm_stats_window_activated_cb), NULL);
 
 	/* add application specific icons to search path */
@@ -1639,15 +1641,14 @@ main (int argc, char *argv[])
 	gtk_widget_set_size_request (graph_statistics, 400, 250);
 	gtk_widget_show (graph_statistics);
 
-	widget = GTK_WIDGET (gtk_builder_get_object (builder, "dialog_stats"));
-	gtk_window_set_default_size (GTK_WINDOW(widget), 800, 500);
+	window = GTK_WIDGET (gtk_builder_get_object (builder, "dialog_stats"));
+	gtk_window_set_default_size (GTK_WINDOW(window), 800, 500);
 	gtk_window_set_default_icon_name (GPM_ICON_APP_ICON);
 
 	/* Get the main window quit */
-	g_signal_connect_swapped (widget, "delete_event", G_CALLBACK (gtk_main_quit), NULL);
-
 	widget = GTK_WIDGET (gtk_builder_get_object (builder, "button_close"));
-	g_signal_connect_swapped (widget, "clicked", G_CALLBACK (gtk_main_quit), NULL);
+	g_signal_connect_swapped (window, "delete_event", G_CALLBACK (gtk_widget_destroy), window);
+	g_signal_connect_swapped (widget, "clicked", G_CALLBACK (gtk_widget_destroy), window);
 	gtk_widget_grab_default (widget);
 
 	widget = GTK_WIDGET (gtk_builder_get_object (builder, "button_help"));
@@ -1812,8 +1813,6 @@ main (int argc, char *argv[])
 #else
 	g_signal_connect (client, "device-added", G_CALLBACK (gpm_stats_device_added_cb), NULL);
 	g_signal_connect (client, "device-removed", G_CALLBACK (gpm_stats_device_removed_cb), NULL);
-#endif
-#if !UP_CHECK_VERSION(0, 99, 0)
 	g_signal_connect (client, "device-changed", G_CALLBACK (gpm_stats_device_changed_cb), NULL);
 #endif
 
@@ -1850,9 +1849,8 @@ main (int argc, char *argv[])
 	gpm_stats_type_combo_changed_cb (widget, NULL);
 
 	widget = GTK_WIDGET (gtk_builder_get_object (builder, "dialog_stats"));
-	gtk_widget_show (widget);
 
-	gtk_main ();
+	status = g_application_run (G_APPLICATION (app), argc, argv);
 #if !UP_CHECK_VERSION(0, 99, 0)
 out:
 #endif
@@ -1864,8 +1862,7 @@ out:
 	g_object_unref (wakeups);
 	g_object_unref (builder);
 	g_object_unref (list_store_info);
-unique_out:
-	g_object_unref (egg_unique);
+	g_object_unref (app);
 	g_free (last_device);
-	return 0;
+	return status;
 }

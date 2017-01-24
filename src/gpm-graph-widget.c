@@ -24,6 +24,7 @@
 #include <pango/pangocairo.h>
 #include <glib/gi18n.h>
 #include <stdlib.h>
+#include <math.h>
 
 #include "gpm-common.h"
 #include "gpm-point-obj.h"
@@ -32,10 +33,6 @@
 #include "egg-debug.h"
 #include "egg-color.h"
 #include "egg-precision.h"
-
-#if GTK_CHECK_VERSION (3, 0, 0)
-#include <math.h>
-#endif
 
 G_DEFINE_TYPE (GpmGraphWidget, gpm_graph_widget, GTK_TYPE_DRAWING_AREA);
 #define GPM_GRAPH_WIDGET_GET_PRIVATE(o) (G_TYPE_INSTANCE_GET_PRIVATE ((o), GPM_TYPE_GRAPH_WIDGET, GpmGraphWidgetPrivate))
@@ -73,11 +70,7 @@ struct GpmGraphWidgetPrivate
 	GPtrArray		*plot_list;
 };
 
-#if GTK_CHECK_VERSION (3, 0, 0)
 static gboolean gpm_graph_widget_draw (GtkWidget *graph, cairo_t *cr);
-#else
-static gboolean gpm_graph_widget_expose (GtkWidget *graph, GdkEventExpose *event);
-#endif
 static void	gpm_graph_widget_finalize (GObject *object);
 
 enum
@@ -241,11 +234,7 @@ gpm_graph_widget_class_init (GpmGraphWidgetClass *class)
 	GtkWidgetClass *widget_class = GTK_WIDGET_CLASS (class);
 	GObjectClass *object_class = G_OBJECT_CLASS (class);
 
-#if GTK_CHECK_VERSION (3, 0, 0)
 	widget_class->draw = gpm_graph_widget_draw;
-#else
-	widget_class->expose_event = gpm_graph_widget_expose;
-#endif
 	object_class->get_property = up_graph_get_property;
 	object_class->set_property = up_graph_set_property;
 	object_class->finalize = gpm_graph_widget_finalize;
@@ -1076,14 +1065,14 @@ gpm_graph_widget_legend_calculate_size (GpmGraphWidget *graph, cairo_t *cr,
 }
 
 /**
- * gpm_graph_widget_draw_graph:
+ * gpm_graph_widget_draw:
  * @graph: This class instance
- * @cr: Cairo drawing context
+ * @event: The expose event
  *
- * Draw the complete graph, with the box, the grid, the labels and the line.
+ * Just repaint the entire graph widget on expose.
  **/
-static void
-gpm_graph_widget_draw_graph (GtkWidget *graph_widget, cairo_t *cr)
+static gboolean
+gpm_graph_widget_draw (GtkWidget *widget, cairo_t *cr)
 {
 	GtkAllocation allocation;
 	gint legend_x = 0;
@@ -1093,9 +1082,9 @@ gpm_graph_widget_draw_graph (GtkWidget *graph_widget, cairo_t *cr)
 	gfloat data_x;
 	gfloat data_y;
 
-	GpmGraphWidget *graph = (GpmGraphWidget*) graph_widget;
-	g_return_if_fail (graph != NULL);
-	g_return_if_fail (GPM_IS_GRAPH_WIDGET (graph));
+	GpmGraphWidget *graph = (GpmGraphWidget*) widget;
+	g_return_val_if_fail (graph != NULL, FALSE);
+	g_return_val_if_fail (GPM_IS_GRAPH_WIDGET (graph), FALSE);
 
 	gpm_graph_widget_legend_calculate_size (graph, cr, &legend_width, &legend_height);
 	cairo_save (cr);
@@ -1109,7 +1098,7 @@ gpm_graph_widget_draw_graph (GtkWidget *graph_widget, cairo_t *cr)
 	graph->priv->box_x = gpm_graph_widget_get_y_label_max_width (graph, cr) + 10;
 	graph->priv->box_y = 5;
 
-	gtk_widget_get_allocation (graph_widget, &allocation);
+	gtk_widget_get_allocation (widget, &allocation);
 	graph->priv->box_height = allocation.height - (20 + graph->priv->box_y);
 
 	/* make size adjustment for legend */
@@ -1142,51 +1131,6 @@ gpm_graph_widget_draw_graph (GtkWidget *graph_widget, cairo_t *cr)
 		gpm_graph_widget_draw_legend (graph, legend_x, legend_y, legend_width, legend_height);
 
 	cairo_restore (cr);
-}
-
-/**
- * gpm_graph_widget_expose:
- * @graph: This class instance
- * @event: The expose event
- *
- * Just repaint the entire graph widget on expose.
- **/
-static gboolean
-#if GTK_CHECK_VERSION (3, 0, 0)
-gpm_graph_widget_draw (GtkWidget *graph, cairo_t *cr)
-#else
-gpm_graph_widget_expose (GtkWidget *graph, GdkEventExpose *event)
-#endif
-{
-#if GTK_CHECK_VERSION (3, 0, 0)
-	GdkRectangle area;
-	gdouble x1, y1, x2, y2;
-
-	cairo_clip_extents (cr, &x1, &y1, &x2, &y2);
-	area.x = floor (x1);
-	area.y = floor (y1);
-	area.width = ceil (x2) - area.x;
-	area.height = ceil (y2) - area.y;
-	cairo_rectangle (cr,
-			 area.x, area.y,
-			 area.width, area.height);
-#else
-	cairo_t *cr;
-
-	/* get a cairo_t */
-	cr = gdk_cairo_create (gtk_widget_get_window (graph));
-	cairo_rectangle (cr,
-			 event->area.x, event->area.y,
-			 event->area.width, event->area.height);
-#endif
-	cairo_clip (cr);
-	((GpmGraphWidget *)graph)->priv->cr = cr;
-
-	gpm_graph_widget_draw_graph (graph, cr);
-
-#if !GTK_CHECK_VERSION (3, 0, 0)
-	cairo_destroy (cr);
-#endif
 	return FALSE;
 }
 

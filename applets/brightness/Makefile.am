@@ -2,10 +2,9 @@ AM_CPPFLAGS =							\
 	-I. -I$(srcdir) 					\
 	$(GLIB_CFLAGS)						\
 	$(DBUS_CFLAGS)						\
-	$(MATE_CFLAGS)						\
+	$(CAIRO_CFLAGS)						\
 	$(PANEL_CFLAGS)						\
 	$(LIBNOTIFY_CFLAGS)					\
-	$(GTKUNIQUE_CFLAGS)					\
 	-DBINDIR=\"$(bindir)\"			 		\
 	-DMATELOCALEDIR=\""$(datadir)/locale"\"	 	\
 	-DDATADIR=\"$(datadir)\"				\
@@ -19,7 +18,6 @@ AM_CPPFLAGS =							\
 	-DEGG_VERBOSE="\"GPM_VERBOSE\""				\
 	-DEGG_LOGGING="\"GPM_LOGGING\""				\
 	-DEGG_CONSOLE="\"GPM_CONSOLE\""				\
-	-I$(top_srcdir)/libdbus-glib				\
 	$(DISABLE_DEPRECATED)
 	$(NULL)
 
@@ -27,8 +25,6 @@ libexec_PROGRAMS=mate-brightness-applet
 
 mate_brightness_applet_SOURCES =				\
 	brightness-applet.c					\
-	egg-dbus-monitor.c					\
-	egg-dbus-monitor.h					\
 	egg-debug.c						\
 	egg-debug.h						\
 	gpm-common.c						\
@@ -36,9 +32,8 @@ mate_brightness_applet_SOURCES =				\
 
 mate_brightness_applet_LDADD =					\
 	$(DBUS_LIBS)						\
-	$(MATE_LIBS)						\
+	$(CAIRO_LIBS)						\
 	$(PANEL_LIBS)
-
 
 appletdir       = $(datadir)/mate-panel/applets
 applet_in_files = org.mate.BrightnessApplet.mate-panel-applet.in
